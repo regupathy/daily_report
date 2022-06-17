@@ -49,7 +49,6 @@ defmodule CurrencyRates do
     end
   end
 
-  
   #  private method fetch_currency_rate/1 download the live curreny list from openexchangerates free open API
   ## default appkey for openexchangerates
   # @apikey '23f7639edfb34aecbe04f8c94cea0671'
@@ -67,5 +66,4 @@ defmodule CurrencyRates do
 
   defp broadcast(data, nodes),
     do: for(node <- nodes, do: {node, __MODULE__} |> :erlang.send({:load_data, data}))
-
 end

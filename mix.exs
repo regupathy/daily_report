@@ -14,7 +14,7 @@ defmodule DailyDumb.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger, :plug_cowboy,:mnesia,:inets],
+      extra_applications: [:logger, :plug_cowboy, :mnesia, :inets],
       mod: {DailyDumb.Application, []}
     ]
   end

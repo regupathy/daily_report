@@ -1,13 +1,12 @@
 defmodule DbHelper do
-  
   # @database "daily_updates"
 
   def new() do
-    SqlWorkPoolSupervisor.start
+    SqlWorkPoolSupervisor.start()
   end
 
-  def close(ref)do
-    Supervisor.delete_child(SqlWorkPoolSupervisor,ref)  
+  def close(ref) do
+    Supervisor.delete_child(SqlWorkPoolSupervisor, ref)
   end
 
   @table "daily_report"
@@ -70,5 +69,4 @@ defmodule DbHelper do
   defp db_val({%Field{type: :int}, val}) when is_integer(val), do: Integer.to_string(val)
   defp db_val({%Field{type: :float}, val}) when is_float(val), do: Float.to_string(val)
   defp db_val(_, val) when is_binary(val), do: "X'#{:base64.encode(val)}'"
-
 end

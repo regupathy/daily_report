@@ -7,11 +7,12 @@ defmodule Work do
   end
 
   def init() do
-    Mnesia.create_table(Person, attributes: Map.keys(%Work{}))
+    Mnesia.create_table(Work, attributes: Map.keys(%Work{}))
   end
 
   def conform_required(fields) do
     totalKeys = for %Field{db_column: name} <- fields, do: name
+
     ["revenue", "currency", "date"]
     |> Enum.all?(fn x -> Enum.member?(totalKeys, x) end)
   end
@@ -19,6 +20,14 @@ defmodule Work do
   def save(%Work{} = work) do
     fn -> Mnesia.write(Map.values(work)) end
     |> Mnesia.transaction()
+  end
+
+  def get(workname) do
+    Mnesia.dirty_read(Work, workname)
+  end
+
+  def get_all_work_names() do
+    Mnesia.dirty_read(Work, [{{'$1', '_', '_'}, [], '$1'}])
   end
 
   def get_all() do

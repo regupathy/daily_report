@@ -4,7 +4,7 @@ defmodule AppNodeManager do
   use GenServer
 
   # Callbacks
-  @impl true 
+  @impl true
   def init(_opts) do
     :global.sync()
     :net_kernel.monitor_nodes(true, [:nodedown_reason])
@@ -15,7 +15,7 @@ defmodule AppNodeManager do
   end
 
   @impl true
-  def handle_call(_msg,_from, state) do
+  def handle_call(_msg, _from, state) do
     {:reply, :ok, state}
   end
 

@@ -18,6 +18,4 @@ defmodule Field do
   defp type("date"), do: :date
   defp type("datetime"), do: :datetime
   defp type(_), do: :text
-
-  
 end
