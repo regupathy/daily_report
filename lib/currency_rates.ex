@@ -7,8 +7,8 @@ defmodule CurrencyRates do
   """
   use GenServer
 
-  def start_link(state, opts) do
-    GenServer.start_link(__MODULE__, state, opts)
+  def start_link(state) do
+    GenServer.start_link(__MODULE__, state, name: __MODULE__)
   end
 
   @currency_table :currency_ets_table
@@ -16,7 +16,6 @@ defmodule CurrencyRates do
   def init(_opts) do
     api_key = Application.fetch_env!(:daily_dumb, :currency_api_key)
     :ets.new(@currency_table, [:set, :protected, :named_table])
-    Process.register(self(), __MODULE__)
     {:ok, %{api_key: api_key}}
   end
 
@@ -68,4 +67,5 @@ defmodule CurrencyRates do
 
   defp broadcast(data, nodes),
     do: for(node <- nodes, do: {node, __MODULE__} |> :erlang.send({:load_data, data}))
+
 end

@@ -7,21 +7,15 @@ defmodule DailyReport.Application do
 
   @impl true
   def start(_type, _args) do
+    
+
+    dbconfig = [username: "root", name: :myxql, password: "password",database: "daily_updates"]
     children = [
-      # Starts a worker by calling: DailyDumb.Worker.start_link(arg)
-      # {DailyDumb.Worker, arg}
-
-      Plug.Cowboy.child_spec(
-        scheme: :http,
-        plug: DailyDumbEndpoint,
-        options: [port: 2000]
-      ),
-      {MyXQL, username: "root", name: :myxql, password: "password"}
+      {MyXQL, dbconfig},
+      {DailyReport.RestAPISupervisor,[]},
+      {DailyReport.SqlWorkPoolSupervisor, dbconfig}
     ]
-
-    # See https://hexdocs.pm/elixir/Supervisor.html
-    # for other strategies and supported options
-    opts = [strategy: :one_for_one, name: DailyReport.Supervisor]
+    opts = [strategy: :one_for_all, name: DailyReport.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

@@ -48,14 +48,14 @@ defmodule DailyDumbEndpoint do
 
   defp map_to_field(mappings)do
     for %{"column" => column} = map <- mappings, into: %{} do
-      to = Map.get(map,"to",String.downcase(column))
-      type = Map.get(map,"type","string")
+      to = map["to"] || String.downcase(column)
+      type = map["type"] || "string"
       {column,Field.new(column,to,type(type))}
     end
   end
 
   defp header_to_fields(headers,fieldmap)do
-    for name <- headers, do: Map.get(fieldmap,name,Field.new(name,String.downcase(name),:string))
+    for name <- headers, do: fieldmap["name"] || Field.new(name,String.downcase(name),:string)
   end
 
 

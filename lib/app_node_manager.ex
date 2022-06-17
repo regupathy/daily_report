@@ -4,7 +4,7 @@ defmodule AppNodeManager do
   use GenServer
 
   # Callbacks
-
+  @impl true 
   def init(_opts) do
     :global.sync()
     :net_kernel.monitor_nodes(true, [:nodedown_reason])
@@ -14,15 +14,18 @@ defmodule AppNodeManager do
     {:ok, %{master: status}}
   end
 
-  def handle_call(_msg, state) do
-    {:ok, :ok, state}
+  @impl true
+  def handle_call(_msg,_from, state) do
+    {:reply, :ok, state}
   end
 
+  @impl true
   def handle_info({:global_name_conflict, __MODULE__}, state) do
     {:ok, %{state | master: false}}
   end
 
   def handle_info(:process_next, %{master: true} = state) do
+    RestAPISupervisor.enable_rest_api()
     {:ok, state}
   end
 

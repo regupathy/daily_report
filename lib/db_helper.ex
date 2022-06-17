@@ -1,7 +1,13 @@
 defmodule DbHelper do
-  @database "daily_updates"
+  
+  # @database "daily_updates"
+
   def new() do
-    MyXQL.start_link(username: "root", password: "password", database: "#{@database}")
+    SqlWorkPoolSupervisor.start
+  end
+
+  def close(ref)do
+    Supervisor.delete_child(SqlWorkPoolSupervisor,ref)  
   end
 
   @table "daily_report"
@@ -19,7 +25,7 @@ defmodule DbHelper do
                 primary key (id)
               );
               ")
-    GenServer.stop(pid)
+    close(pid)
   end
 
   def get_all_columns(conn) do
@@ -63,8 +69,6 @@ defmodule DbHelper do
 
   defp db_val({%Field{type: :int}, val}) when is_integer(val), do: Integer.to_string(val)
   defp db_val({%Field{type: :float}, val}) when is_float(val), do: Float.to_string(val)
-  defp db_val(_, val) when is_binary(val), do: val
+  defp db_val(_, val) when is_binary(val), do: "X'#{:base64.encode(val)}'"
 
-  # escape_binary(Bin) when is_binary(Bin) ->
-  #     [<<"X'">>, base16:encode(Bin), <<"'">>].
 end

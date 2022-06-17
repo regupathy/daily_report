@@ -9,8 +9,6 @@ defmodule Field do
     }
   end
 
-
-
   def db_column(%Field{db_column: nil, file_column: col}), do: String.downcase(col)
   def db_column(%Field{db_column: col}), do: col
 
@@ -20,4 +18,6 @@ defmodule Field do
   defp type("date"), do: :date
   defp type("datetime"), do: :datetime
   defp type(_), do: :text
+
+  
 end
