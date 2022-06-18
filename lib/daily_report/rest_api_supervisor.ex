@@ -14,7 +14,7 @@ defmodule DailyReport.RestAPISupervisor do
     children = [
       Plug.Cowboy.child_spec(
         scheme: :http,
-        plug: DailyDumbEndpoint,
+        plug: DailyReportEndpoint,
         options: [port: 2000]
       )
     ]

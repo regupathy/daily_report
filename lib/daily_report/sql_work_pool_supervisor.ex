@@ -9,12 +9,16 @@ defmodule DailyReport.SqlWorkPoolSupervisor do
     Supervisor.start_child(__MODULE__, [])
   end
 
+  def stop(ref) do
+    Supervisor.delete_child(__MODULE__,ref)
+    Supervisor.terminate_child(__MODULE__,ref)
+  end
+
   @impl true
   def init(init_arg) do
     children = [
       %{id: SqlWorker, start: {MyXQL, :start_link, [init_arg]}}
     ]
-
     Supervisor.init(children, strategy: :simple_one_for_one)
   end
 end

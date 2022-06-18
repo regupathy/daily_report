@@ -1,9 +1,10 @@
 defmodule CSVHandler do
-  def get_stream(filepath) do
+
+  def get_stream(filepath,header?) do
     filepath
     |> Path.expand(__DIR__)
     |> File.stream!()
-    |> CSV.decode()
+    |> CSV.decode(headers: header?)
   end
 
   def header(stream) do
@@ -12,7 +13,16 @@ defmodule CSVHandler do
     end
   end
 
-  def next(stream) do
-    stream |> Enum.take(1)
+  def process(filepath,start_row,eventfunc,endfunc)do
+    get_stream(filepath,true)
+    |> Stream.with_index
+    |> Stream.map(fn {row,num} -> 
+      if start_row < num do
+        eventfunc.(num,row)
+      end
+      end)
+    |> Stream.run
+    endfunc.()
   end
+
 end

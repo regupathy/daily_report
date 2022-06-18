@@ -20,3 +20,9 @@ defmodule DailyReport.Application do
     Supervisor.start_link(children, opts)
   end
 end
+
+
+defp auto_join_nodes()do
+
+end
+

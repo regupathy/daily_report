@@ -9,7 +9,24 @@ defmodule WorkScheduler do
   """
   @impl true
   def init(_opts) do
+    Work.init()
     {:ok, %{master: false, nodes: [], on_process: false, master_ref: nil, handlers: []}}
+  end
+
+  # ------------------------------------------------------------------------------
+  #                 API only for AppNodeManager
+  # ------------------------------------------------------------------------------
+
+  def markAsMaster() do
+    GenServer.call(WorkScheduler,:be_master)
+  end
+
+  def start_work(nodes)do
+    GenServer.call(WorkScheduler,{:begin_work, nodes})
+  end
+
+  def rebalance_work(nodes)do
+    GenServer.call(WorkScheduler,{:rebalance_work,nodes})
   end
 
   # ------------------------------------------------------------------------------
@@ -39,9 +56,7 @@ defmodule WorkScheduler do
     {:reply, :ok, state}
   end
 
-  def handle_call(
-        {:check_work, nodes},
-        _from,
+  def handle_call({:rebalance_work, nodes},_from,
         %{master: true, nodes: usednodes, status: status} = state
       ) do
     pending = NodeWorkStatus.get_incomplete_jobs(usednodes -- nodes, status)
@@ -64,10 +79,9 @@ defmodule WorkScheduler do
   def handle_cast(%{work_status: workStatus, nodes: nodes}, state) do
     handlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(node(), workStatus) do
-        {:ok, ref} = DailyReport.AppWorkSupervisor.start_work(id, job_name, row)
+        {:ok, ref} = WorkHandler.params(id,job_name,row) |> DailyReport.AppWorkSupervisor.start_work
         ref
       end
-
     {:noreply,
      %{state | work_status: workStatus, nodes: nodes, on_process: true, handlers: handlers}}
   end
@@ -80,14 +94,12 @@ defmodule WorkScheduler do
         %{reassign_work: reassign, nodes: nodes},
         %{handlers: handlers, work_status: workStatus} = state
       ) do
-    {ids, newWorkStatus} = NodeWorkStatus.reassign(reassign, node(), workStatus)
-
+    newWorkStatus = NodeWorkStatus.reassign(reassign,workStatus)
     newhandlers =
-      for {id, job_name, row} <- NodeWorkStatus.get_jobs(ids, node(), newWorkStatus) do
-        {:ok, ref} = DailyReport.AppWorkSupervisor.start_work(id, job_name, row)
+      for {id, job_name, row} <- NodeWorkStatus.get_jobs(reassign, node(), newWorkStatus) do
+        {:ok, ref} = WorkHandler.params(id,job_name,row) |> DailyReport.AppWorkSupervisor.start_work
         ref
       end
-
     {:noreply,
      %{
        state
@@ -122,9 +134,8 @@ defmodule WorkScheduler do
     # checking the master scheduler whether all nodes are done their jobs
     # if all done mean it will inform the global app node manager that all jobs are completed
     if pendingNodes == [] and state.master do
-      :global.send(AppNodeManager, {:work_done, self})
+      AppNodeManager.to_global(:work_done)
     end
-
     {:noreply, %{state | nodes: pendingNodes}}
   end
 
@@ -152,22 +163,17 @@ defmodule WorkScheduler do
   Own handler inform his scheduler when job is completed
   """
   def handle_info(
-        {:done, job, handler},
+        {:done, handler},
         %{nodes: nodes, handlers: handlers, work_status: workStatus} = state
       ) do
-    newStatus = NodeWorkStatus.job_complete(job, workStatus)
-    inform_peers({:completed, job}, nodes -- [node])
     DailyReport.AppWorkSupervisor.stop(handler)
     newhandlers = handlers -- [handler]
-
-    if newhandlers == [] do
       inform_peers({:node_completed_jobs, node()}, nodes -- [node()])
-      {:noreply, %{state | work_status: newStatus, handlers: newhandlers, on_process: false}}
-    else
-      {:noreply, %{state | work_status: newStatus, handlers: newhandlers}}
-    end
+      {:noreply, %{state | handlers: newhandlers, on_process: false}}
   end
 
   defp inform_peers(msg, nodes),
     do: for(node <- nodes, do: {node, __MODULE__} |> GenServer.cast(msg))
+
+    
 end

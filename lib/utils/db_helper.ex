@@ -1,12 +1,13 @@
 defmodule DbHelper do
+  
   # @database "daily_updates"
 
   def new() do
-    SqlWorkPoolSupervisor.start()
+    DailyReport.SqlWorkPoolSupervisor.start
   end
 
-  def close(ref) do
-    Supervisor.delete_child(SqlWorkPoolSupervisor, ref)
+  def close(ref)do
+    Supervisor.delete_child(DailyReport.SqlWorkPoolSupervisor,ref)  
   end
 
   @table "daily_report"
@@ -31,7 +32,6 @@ defmodule DbHelper do
     res = MyXQL.query(conn, "SELECT column_name
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_NAME = N'#{@table}'")
-
     case res do
       {:ok, %MyXQL.Result{rows: rows}} -> for [x] <- rows, do: x
       _ -> []
@@ -59,14 +59,27 @@ defmodule DbHelper do
   method insert/2 used to insert the values into table #{@table}
   """
   def insert(fields_values, conn) when is_list(fields_values) do
-    cols = for x <- fields_values, do: "'#{x.db_column}'"
+    cols = for {x,_} <- fields_values, do: "'#{x.db_column}'"
     place_holder = String.duplicate("?", length(fields_values)) |> Enum.join(",")
-    params = for fval <- fields_values, do: db_val(fval)
+    params = for {_,fval} <- fields_values, do: db_val(fval)
     statement = "INSERT INTO #{@table}(" <> Enum.join(cols, " , ") <> ")VALUES(#{place_holder})"
+    MyXQL.query(conn, statement, params)
+  end
+
+  def multinsert(fields_values, conn) when is_list(fields_values) do
+    cols = for {x,_} <- fields_values, do: "'#{x.db_column}'"
+    single_holder = String.duplicate("?", length(cols)) |> Enum.join(",")
+    place_holder = String.duplicate("(#{single_holder}), ",length(fields_values)) |> Enum.join(",")
+    params = 
+    for items <- fields_values do
+      for {_,fval} <- items, do: db_val(fval)
+    end
+    statement = "INSERT INTO #{@table}(" <> Enum.join(cols, " , ") <> ")VALUES#{place_holder}"
     MyXQL.query(conn, statement, params)
   end
 
   defp db_val({%Field{type: :int}, val}) when is_integer(val), do: Integer.to_string(val)
   defp db_val({%Field{type: :float}, val}) when is_float(val), do: Float.to_string(val)
-  defp db_val(_, val) when is_binary(val), do: "X'#{:base64.encode(val)}'"
+  defp db_val({_, val}) when is_binary(val), do: "X'#{:base64.encode(val)}'"
+
 end

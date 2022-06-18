@@ -33,7 +33,7 @@ defmodule DailyReportEndpoint do
 
   defp process_job(job) do
     try do
-      with headers <- CSVHandler.get_stream(job["source"]),
+      with headers <- CSVHandler.get_stream(job["source"],false),
            usersFields <- map_to_field(job["mapping"]),
            fields <- header_to_fields(headers, usersFields),
            true <- Work.conform_required(fields) do

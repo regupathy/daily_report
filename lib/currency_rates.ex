@@ -7,6 +7,10 @@ defmodule CurrencyRates do
   """
   use GenServer
 
+  def initiate(nodes) do
+    GenServer.cast(__MODULE__,{:download_and_broadcast, nodes})  
+  end
+
   def start_link(state) do
     GenServer.start_link(__MODULE__, state, name: __MODULE__)
   end

@@ -1,5 +1,5 @@
 defmodule Field do
-  defstruct [:file_column, :db_column, :type]
+  defstruct [:file_column, :db_column, :type, :value]
 
   def new(fileColumn, dbColumn, type) do
     %Field{
@@ -18,4 +18,13 @@ defmodule Field do
   defp type("date"), do: :date
   defp type("datetime"), do: :datetime
   defp type(_), do: :text
+
+
+  def map_to_field(rows,fields) do
+    for {name,value} <- rows do
+      field = List.keyfind!(fields,name,1)
+      %{field | value: value}
+    end
+  end
+
 end

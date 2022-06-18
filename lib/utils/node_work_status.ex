@@ -1,4 +1,7 @@
 defmodule NodeWorkStatus do
+  @moduledoc """
+    To maintain works status of all nodes
+  """
   defstruct [:job_name, :node, :complete_time, is_complete: false, row_id: 0]
 
   def new(schedule) do
@@ -22,14 +25,15 @@ defmodule NodeWorkStatus do
   end
 
   def get_jobs(node, status) do
-    for {id, %NodeWorkStatus{node: ^node, job_name: job}} <- status.jobs do
-      {id, job}
+    for {id, %NodeWorkStatus{node: ^node, job_name: job, row_id: row}} <- status.jobs do
+      {id, job,row}
     end
   end
 
-  def get_jobs(ids, node, status) do
-    for {id, %NodeWorkStatus{node: ^node, job_name: job}} <- status.jobs, id in ids do
-      {id, job}
+  def get_jobs(reassign_jobs, node, status) do
+    nodejobs = for {id,^node} <- reassign_jobs, do: id
+    for {id, %NodeWorkStatus{job_name: job,row_id: row}} <- status.jobs, id in nodejobs do
+      {id, job,row}
     end
   end
 
@@ -40,14 +44,11 @@ defmodule NodeWorkStatus do
     end
   end
 
-  def reassign(jobs, node, status) do
-    ids =
-      for {id, node1} <- jobs do
+  def reassign(jobs,status) do
+      List.foldl(jobs,status,fn({id,node},acc) ->
         work = status.jobs[id]
-        status = %{status | jobs: %{status.jobs | id => %{work | node: node1}}}
-        id
-      end
-
-    {ids, status}
+        status = %{status | jobs: %{status.jobs | id => %{work | node: node}}}
+      end)
   end
+
 end
