@@ -26,29 +26,29 @@ defmodule NodeWorkStatus do
 
   def get_jobs(node, status) do
     for {id, %NodeWorkStatus{node: ^node, job_name: job, row_id: row}} <- status.jobs do
-      {id, job,row}
+      {id, job, row}
     end
   end
 
   def get_jobs(reassign_jobs, node, status) do
-    nodejobs = for {id,^node} <- reassign_jobs, do: id
-    for {id, %NodeWorkStatus{job_name: job,row_id: row}} <- status.jobs, id in nodejobs do
-      {id, job,row}
+    nodejobs = for {id, ^node} <- reassign_jobs, do: id
+
+    for {id, %NodeWorkStatus{job_name: job, row_id: row}} <- status.jobs, id in nodejobs do
+      {id, job, row}
     end
   end
 
   def get_incomplete_jobs(nodes, status) do
-    for {id, %NodeWorkStatus{node: node, is_complete: false} = task} <- status.jobs,
+    for {id, %NodeWorkStatus{node: node, is_complete: false}} <- status.jobs,
         node not in nodes do
       id
     end
   end
 
-  def reassign(jobs,status) do
-      List.foldl(jobs,status,fn({id,node},acc) ->
-        work = status.jobs[id]
-        status = %{status | jobs: %{status.jobs | id => %{work | node: node}}}
-      end)
+  def reassign(jobs, status) do
+    List.foldl(jobs, status, fn {id, node}, acc ->
+      work = acc.jobs[id]
+      %{acc | jobs: %{acc.jobs | id => %{work | node: node}}}
+    end)
   end
-
 end

@@ -30,16 +30,15 @@ defmodule Work do
     Mnesia.dirty_read(Work, [{{'$1', '_', '_'}, [], '$1'}])
   end
 
-  def get_fields(%Work{} = work)do
+  def get_fields(%Work{} = work) do
     work.fields
   end
 
-  def get_source(work)do
+  def get_source(work) do
     work.url
   end
 
   def get_all() do
     Mnesia.dirty_read(Work)
   end
-
 end

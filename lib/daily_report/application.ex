@@ -19,10 +19,7 @@ defmodule DailyReport.Application do
     opts = [strategy: :one_for_all, name: DailyReport.Supervisor]
     Supervisor.start_link(children, opts)
   end
+
+  defp auto_join_nodes() do
+  end
 end
-
-
-defp auto_join_nodes()do
-
-end
-

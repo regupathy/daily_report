@@ -19,12 +19,10 @@ defmodule Field do
   defp type("datetime"), do: :datetime
   defp type(_), do: :text
 
-
-  def map_to_field(rows,fields) do
-    for {name,value} <- rows do
-      field = List.keyfind!(fields,name,1)
+  def map_to_field(rows, fields) do
+    for {name, value} <- rows do
+      field = List.keyfind!(fields, name, 1)
       %{field | value: value}
     end
   end
-
 end

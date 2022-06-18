@@ -1,6 +1,6 @@
 defmodule AppNodeManager do
   @moduledoc """
-  
+
       AppNodeManager is main controller for the cluster of nodes
 
       Each node has one local AppNodeManager processes
@@ -18,13 +18,15 @@ defmodule AppNodeManager do
 
   """
   use GenServer
+  
+  require Logger
 
   def to_global(msg) do
-    :global.send(AppNodeManager, {msg, self})
+    :global.send(AppNodeManager, {msg, self()})
   end
 
-  def start_work()do
-    :global.send(AppNodeManager,:start_work)
+  def start_work(name) do
+    :global.send(AppNodeManager, {:start_work,name})
   end
 
   # Callbacks
@@ -35,13 +37,20 @@ defmodule AppNodeManager do
     # requesting the kernal for monitor_node subscription
     :net_kernel.monitor_nodes(true, [:nodedown_reason])
     res = :global.register_name(AppNodeManager, self(), &:global.random_notify_name/3)
+    clusterNodes = :erlang.nodes()
     if res == :yes do
-      :timer.send_after(1000, self(), :process_next)   
-    {:ok, %{master: true, master_node: nil, active_nodes: [node()|nodes()] ,work_start?: false }}
-      else 
-    {:ok, %{master: false,,work_start?: false,active_nodes: [node()|nodes()],
-     master_node: :global.whereis_name(AppNodeManager) |> node() }}
-      end
+      :timer.send_after(1000, self(), :process_next)
+      {:ok,
+       %{master: true, master_node: nil, active_nodes: [node() | clusterNodes], work_start?: false}}
+    else
+      {:ok,
+       %{
+         master: false,
+         work_start?: false,
+         active_nodes: [node()|clusterNodes],
+         master_node: :global.whereis_name(AppNodeManager) |> node()
+       }}
+    end
   end
 
   @impl true
@@ -50,8 +59,8 @@ defmodule AppNodeManager do
   end
 
   @impl true
-  def handle_cast(:work_started,state)do
-    {:noreply,%{state | work_start?: true}}
+  def handle_cast(:work_started, state) do
+    {:noreply, %{state | work_start?: true}}
   end
 
   @impl true
@@ -64,16 +73,14 @@ defmodule AppNodeManager do
 
   def handle_info(:process_next, %{master: true} = state) do
     DailyReport.RestAPISupervisor.enable_rest_api()
-    CurrencyRates.initiate(nodes())
+    CurrencyRates.initiate(state.active_nodes)
     WorkScheduler.markAsMaster()
-    # After become a master node 
-    if state.
-    {:noreply, %{state| master_node: node()}}
+    {:noreply, %{state | master: true,master_node: node()}}
   end
 
-# ---------------------------------------------------------------------------------
-#                 Handling Node Up Signal
-# ---------------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------------
+  #                 Handling Node Up Signal
+  # ---------------------------------------------------------------------------------
   # Master Node receive the slave node Node UP Signal
   def handle_info({:nodeup, node, _}, %{master: true} = state) do
     Logger.info(" Master Node:  Node #{node} joined in the Cluster ")
@@ -82,61 +89,71 @@ defmodule AppNodeManager do
   end
 
   # Slave Node receive other Slave node Node UP signal
-  def handle_info({:nodeup, node, _}, %{active_nodes: active_nodes} =state) do
+  def handle_info({:nodeup, node, _}, %{active_nodes: active_nodes} = state) do
     Logger.info("Slave Node:  Node #{node} joined in the Cluster ")
-    {:noreply,%{state | active_nodes: [node| active_nodes] }}
+    {:noreply, %{state | active_nodes: [node | active_nodes]}}
   end
 
-# ---------------------------------------------------------------------------------
-#                 Handling Node Down Signal
-# ---------------------------------------------------------------------------------
-    # Master Node receive  slave node DOWN signal
-    def handle_info({:nodedown, node, _}, %{master: true, active_nodes: active_nodes} = state) do
-      newCluster = active_nodes -- [node]
-      # Master node check with Work scheduler to rebalancing the work of Downed node 
-      if state.work_start? do
-        WorkScheduler.rebalance_work(newCluster)
-      end
-      {:noreply,%{state| active_nodes: newCluster}}
+  # ---------------------------------------------------------------------------------
+  #                 Handling Node Down Signal
+  # ---------------------------------------------------------------------------------
+  # Master Node receive  slave node DOWN signal
+  def handle_info({:nodedown, node, _}, %{master: true, active_nodes: active_nodes} = state) do
+    newCluster = active_nodes -- [node]
+    # Master node check with Work scheduler to rebalancing the work of Downed node 
+    if state.work_start? do
+      WorkScheduler.rebalance_work(state.work_name,newCluster)
     end
 
+    {:noreply, %{state | active_nodes: newCluster}}
+  end
+
   # Slave Node receive the Master node DOWN Signal
-  def handle_info({:nodedown, node, _}, %{master_node: ^node,active_nodes: active_nodes} =state) do
+  def handle_info(
+        {:nodedown, node, _},
+        %{master_node: master_node, active_nodes: active_nodes} = state
+      )
+      when node == master_node do
     res = :global.register_name(AppNodeManager, self(), &:global.random_notify_name/3)
+
     if res == :yes do
-      :timer.send_after(1000, self(), :process_next)   
-    {:noreply, %{state | master: true, master_node: nil, active_nodes: [node| active_nodes]  }}
-      else 
-    {:noreply, %{state | master: false,, active_nodes: [node| active_nodes],
-     master_node: :global.whereis_name(AppNodeManager) |> node() }}
-      end
+      :timer.send_after(1000, self(), :process_next)
+      {:noreply, %{state | master: true, master_node: nil, active_nodes: [node | active_nodes]}}
+    else
+      {:noreply,
+       %{
+         state
+         | master: false,
+           active_nodes: [node | active_nodes],
+           master_node: :global.whereis_name(AppNodeManager) |> node()
+       }}
+    end
   end
 
   # Slave Node receive other slave node DOWN signal
-  def handle_info({:nodedown, node, _}, %{active_nodes: active_nodes} =state) do
-      {:noreply,%{state| ,active_nodes: active_nodes -- [node]}}
+  def handle_info({:nodedown, node, _}, %{active_nodes: active_nodes} = state) do
+    {:noreply, %{state | active_nodes: active_nodes -- [node]}}
   end
 
   # def handle_info({:nodedown, _node, [{:nodedown_reason, _reason}]}, state) do
   #   {:ok, state}
   # end
-  
-# ---------------------------------------------------------------------------------
-#                 Initiate the work
-# ---------------------------------------------------------------------------------
-  def handle_info(:start_work, state) do 
-    WorkScheduler.start_work(nodes() ++ [node()])
-    inform_peers(:work_started)
-    {:noreply, %{state | :work_start?: true}}
+
+  # ---------------------------------------------------------------------------------
+  #                 Initiate the work
+  # ---------------------------------------------------------------------------------
+  def handle_info({:start_work,name}, state) do
+    WorkScheduler.start_work(name,state.active_nodes)
+    inform_peers(:work_started,state.active_nodes)
+    {:noreply, %{state | work_start?: true, work_name: name}}
   end
 
-# ---------------------------------------------------------------------------------
-#                 Helper Functions
-# ---------------------------------------------------------------------------------
-defp inform_peers(msg, nodes)do
-  exceptMe = nodes -- [node()]
-   for(node <- exceptMe, do: {node, __MODULE__} |> GenServer.cast(msg))
-
-end
+  # ---------------------------------------------------------------------------------
+  #                 Helper Functions
+  # ---------------------------------------------------------------------------------
+  defp inform_peers(msg, nodes) do
+    exceptMe = nodes -- [node()]
+    for node <- exceptMe, do: {node, __MODULE__} |> GenServer.cast(msg)
+  end
 
 end

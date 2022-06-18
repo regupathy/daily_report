@@ -15,7 +15,7 @@ defmodule DailyDumb.MixProject do
   def application do
     [
       extra_applications: [:logger, :plug_cowboy, :mnesia, :inets],
-      mod: {DailyReport.Application , []}
+      mod: {DailyReport.Application, []}
     ]
   end
 
@@ -31,6 +31,3 @@ defmodule DailyDumb.MixProject do
     ]
   end
 end
-
-
-

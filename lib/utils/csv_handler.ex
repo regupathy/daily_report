@@ -1,6 +1,5 @@
 defmodule CSVHandler do
-
-  def get_stream(filepath,header?) do
+  def get_stream(filepath, header?) do
     filepath
     |> Path.expand(__DIR__)
     |> File.stream!()
@@ -13,16 +12,16 @@ defmodule CSVHandler do
     end
   end
 
-  def process(filepath,start_row,eventfunc,endfunc)do
-    get_stream(filepath,true)
-    |> Stream.with_index
-    |> Stream.map(fn {row,num} -> 
+  def process(filepath, start_row, eventfunc, endfunc) do
+    get_stream(filepath, true)
+    |> Stream.with_index()
+    |> Stream.map(fn {row, num} ->
       if start_row < num do
-        eventfunc.(num,row)
+        eventfunc.(num, row)
       end
-      end)
-    |> Stream.run
+    end)
+    |> Stream.run()
+
     endfunc.()
   end
-
 end
