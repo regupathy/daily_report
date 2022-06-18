@@ -7,7 +7,15 @@ defmodule Work do
   end
 
   def init() do
-    Mnesia.create_table(Work, attributes: Map.keys(%Work{}))
+    Mnesia.stop()
+    Mnesia.create_schema(node())
+    Mnesia.start()
+    Mnesia.change_table_copy_type(:schema,node(),:disc_copies)
+  end
+
+  def new_node(node)do
+    Mnesia.change_config(:extra_db_nodes, [node])
+    Mnesia.add_table_copy(Work,node,:disc_copies)
   end
 
   def conform_required(fields) do
@@ -42,3 +50,5 @@ defmodule Work do
     Mnesia.dirty_read(Work)
   end
 end
+
+

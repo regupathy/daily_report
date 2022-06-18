@@ -18,7 +18,7 @@ defmodule AppNodeManager do
 
   """
   use GenServer
-  
+
   require Logger
 
   def to_global(msg) do
@@ -72,6 +72,7 @@ defmodule AppNodeManager do
   end
 
   def handle_info(:process_next, %{master: true} = state) do
+    Logger.info("Node #{node()} becomes a master ")
     DailyReport.RestAPISupervisor.enable_rest_api()
     CurrencyRates.initiate(state.active_nodes)
     WorkScheduler.markAsMaster()
@@ -84,6 +85,7 @@ defmodule AppNodeManager do
   # Master Node receive the slave node Node UP Signal
   def handle_info({:nodeup, node, _}, %{master: true} = state) do
     Logger.info(" Master Node:  Node #{node} joined in the Cluster ")
+    Work.new_node(node)
     :global.sync()
     {:noreply, state}
   end

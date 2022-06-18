@@ -1,24 +1,26 @@
 defmodule DailyReport.AppWorkSupervisor do
-  use Supervisor
+
+  use DynamicSupervisor
 
   def start_link(init_arg) do
-    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
-  end
-
-  def start_work(args) do
-    Supervisor.start_child(__MODULE__, [args, self()])
+    DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
   end
 
   def stop(ref) do
-    Supervisor.delete_child(__MODULE__, ref)
+    DynamicSupervisor.terminate_child(__MODULE__, ref)
+  end
+ 
+  def start_work(args) do
+    spec = {WorkHandler,[args,self()] }
+    DynamicSupervisor.start_child(__MODULE__, spec)
   end
 
   @impl true
-  def init(_init_arg) do
-    children = [
-      {WorkHandler, []}
-    ]
-
-    Supervisor.init(children, strategy: :simple_one_for_one)
+  def init(init_arg) do
+    DynamicSupervisor.init(
+      strategy: :one_for_one,
+      extra_arguments: [init_arg]
+    )
   end
+
 end

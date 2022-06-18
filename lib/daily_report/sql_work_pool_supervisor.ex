@@ -1,25 +1,27 @@
 defmodule DailyReport.SqlWorkPoolSupervisor do
-  use Supervisor
+
+  use DynamicSupervisor
 
   def start_link(init_arg) do
-    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
-  end
-
+    DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+  end 
+  
   def start() do
-    Supervisor.start_child(__MODULE__, [])
+    spec = {MyXQL, []}
+    DynamicSupervisor.start_child(__MODULE__, spec)
   end
 
   def stop(ref) do
-    Supervisor.delete_child(__MODULE__, ref)
-    Supervisor.terminate_child(__MODULE__, ref)
+    DynamicSupervisor.terminate_child(__MODULE__, ref)
   end
 
   @impl true
   def init(init_arg) do
-    children = [
-      %{id: SqlWorker, start: {MyXQL, :start_link, [init_arg]}}
-    ]
-
-    Supervisor.init(children, strategy: :simple_one_for_one)
+    DynamicSupervisor.init(
+      strategy: :one_for_one,
+      extra_arguments: [init_arg]
+    )
   end
+
+
 end
