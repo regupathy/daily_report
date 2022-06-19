@@ -1,16 +1,24 @@
 defmodule WorkScheduler do
   use GenServer
-
+  require Logger
   @moduledoc """
     Work Scheduler is responsible for maintain 
               1. share all work meta data in all nodes
               2. share the live working csv file updates into all nodes
               3. save live status of all node's work status 
   """
+
+  defstruct [:master, :nodes, :work_status, :on_process, :master_ref, :handlers]
+
+  def start_link(state) do
+    GenServer.start_link(__MODULE__, state, name: __MODULE__)
+  end
+
   @impl true
   def init(_opts) do
+    :erlang.process_flag(:trap_exit,true)
     Work.init()
-    {:ok, %{master: false, nodes: [], on_process: false, master_ref: nil, handlers: []}}
+    {:ok, %WorkScheduler{master: false, nodes: [], on_process: false, master_ref: nil, handlers: []}}
   end
 
   # ------------------------------------------------------------------------------
@@ -21,12 +29,12 @@ defmodule WorkScheduler do
     GenServer.call(WorkScheduler, :be_master)
   end
 
-  def start_work(name,nodes) do
-    GenServer.call(WorkScheduler, {:begin_work, nodes,name})
+  def start_work(name, nodes) do
+    GenServer.call(WorkScheduler, {:begin_work, nodes, name})
   end
 
-  def rebalance_work(name,nodes) do
-    GenServer.call(WorkScheduler, {:rebalance_work,name,nodes})
+  def rebalance_work(name, nodes) do
+    GenServer.call(WorkScheduler, {:rebalance_work, name, nodes})
   end
 
   # ------------------------------------------------------------------------------
@@ -40,17 +48,18 @@ defmodule WorkScheduler do
   @doc """
       App Node Manager initiate work to master WorkScheduler
   """
-  def handle_call({:begin_work, nodes,workname}, _from, %{master: true} = state) do
+  def handle_call({:begin_work, nodes, workname}, _from, %{master: true} = state) do
     works = nodes |> Stream.cycle() |> Enum.zip(Work.get_all_work_names())
+    Logger.info("Work Distribution is started ~n #{inspect(works)}")
     schedule = for {node, work_name} <- works, do: {make_ref(), node, work_name}
     workStatus = NodeWorkStatus.new(schedule)
-    inform_all({:work_begin,%{work_status: workStatus, nodes: nodes,workname: workname}}, nodes)
+    Logger.info("Work Schedule is : #{inspect(workStatus)}")
+    inform_all({:work_begin, %{work_status: workStatus, nodes: nodes, workname: workname}}, nodes)
     {:reply, :ok, state}
   end
 
-  
   # Scheduler checking the incomplete jobs of down nodes and reassign it remainig available nodes
-  def handle_call({:check_work, nodes}, _from, %{master: true, nodes: usednodes} = state)
+  def handle_call({:rebalance_work, nodes}, _from, %{master: true, nodes: usednodes} = state)
       when length(nodes) == length(usednodes) do
     {:reply, :ok, state}
   end
@@ -61,10 +70,10 @@ defmodule WorkScheduler do
         %{master: true, nodes: usednodes, status: status} = state
       ) do
     pending = NodeWorkStatus.get_incomplete_jobs(usednodes -- nodes, status)
-
     if pending != [] do
+      Logger.info(" Schedule rebalancing the work : #{inspect(pending)}")
       reassign = nodes |> Stream.cycle() |> Enum.zip(pending)
-      inform_all({:reassign_work, workname,%{reassign_work: reassign, nodes: nodes}}, nodes)
+      inform_all({:reassign_work, workname, %{reassign_work: reassign, nodes: nodes}}, nodes)
     end
 
     {:reply, :ok, state}
@@ -76,39 +85,45 @@ defmodule WorkScheduler do
 
   #  All Schedulers will begin their work 
   @impl true
-  def handle_cast({:work_begin,%{work_status: workStatus, nodes: nodes, workname: workname}}, state) do
-    destination = Path.join("output",workname)
+  def handle_cast(
+        {:work_begin, %{work_status: workStatus, nodes: nodes, workname: workname}},
+        state
+      ) do
+
+    destination = Path.join("output", workname) 
     File.mkdir(destination)
+    # destination = destination |>  Path.expand(__DIR__)
+    Logger.info("Scheduler start work and use directory #{destination}")    
     handlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(node(), workStatus) do
         {:ok, ref} =
-          WorkHandler.params(id, job_name, row,destination) |> DailyReport.AppWorkSupervisor.start_work()
+          WorkHandler.params(id, job_name, row, destination)
+          |> DailyReport.AppWorkSupervisor.start_work()
 
         ref
       end
-
+    Logger.info("Handlers created for #{workname} are #{inspect(handlers)}")
     {:noreply,
      %{state | work_status: workStatus, nodes: nodes, on_process: true, handlers: handlers}}
   end
 
   # Schedulers create a new handler if any job assinged to his node
   def handle_cast(
-        {:reassign_work ,workname,%{reassign_work: reassign, nodes: nodes}},
+        {:reassign_work, workname, %{reassign_work: reassign, nodes: nodes}},
         %{handlers: handlers, work_status: workStatus} = state
       ) do
-        destination = Path.join("output",workname)
-        File.mkdir(destination)
+    destination = Path.join("output", workname)
+    File.mkdir(destination)
     newWorkStatus = NodeWorkStatus.reassign(reassign, workStatus)
-
     newhandlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(reassign, node(), newWorkStatus) do
         {:ok, ref} =
-          WorkHandler.params(id, job_name, row,destination) 
+          WorkHandler.params(id, job_name, row, destination)
           |> DailyReport.AppWorkSupervisor.start_work()
-        
+
         ref
       end
-
+      Logger.info("Handlers created for #{workname} are #{inspect(newhandlers)}")
     {:noreply,
      %{
        state
@@ -139,6 +154,7 @@ defmodule WorkScheduler do
     if pendingNodes == [] and state.master do
       AppNodeManager.to_global(:work_done)
     end
+
     {:noreply, %{state | nodes: pendingNodes}}
   end
 
@@ -153,6 +169,7 @@ defmodule WorkScheduler do
         %{nodes: nodes, handlers: handlers, work_status: workStatus} = state
       ) do
     if handler in handlers do
+      Logger.info("Handler #{inspect(handler)} has work update: #{inspect(status)}")
       newStatus = NodeWorkStatus.update_status(status, workStatus)
       inform_peers({:update, status}, nodes)
       {:noreply, %{state | work_status: newStatus}}
@@ -163,23 +180,33 @@ defmodule WorkScheduler do
 
   # Own handler inform his scheduler when job is completed
   def handle_info(
-        {:done, handler},
+        {:done, id, handler},
         %{nodes: nodes, handlers: handlers} = state
       ) do
+      Logger.info("Handler #{inspect(handler)} has done his work #{inspect(id)} ")
     DailyReport.AppWorkSupervisor.stop(handler)
     newhandlers = handlers -- [handler]
+
     if newhandlers == [] do
       inform_all({:node_completed_jobs, node()}, nodes)
     end
+
     {:noreply, %{state | handlers: newhandlers}}
   end
 
+
+  @impl true
+  def handle_info(info,state)do
+    IO.puts("Unhandled handleinfo: #{inspect(info)} ")
+    {:noreply,state}
+  end
+
+
   defp inform_peers(msg, nodes) do
-    nodes -- [node()] |> inform_all(msg)
+    inform_all(msg,nodes -- [node()])
   end
 
   defp inform_all(msg, nodes) do
-    for(node <- nodes, do: {node, __MODULE__} |> GenServer.cast(msg))
+    for node <- nodes, do: {__MODULE__, node} |> GenServer.cast(msg)
   end
-
 end

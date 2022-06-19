@@ -21,34 +21,49 @@ defmodule AppNodeManager do
 
   require Logger
 
+  def start_link(state) do
+    GenServer.start_link(__MODULE__, state, name: __MODULE__)
+  end
+
   def to_global(msg) do
     :global.send(AppNodeManager, {msg, self()})
   end
 
   def start_work(name) do
-    :global.send(AppNodeManager, {:start_work,name})
+    :global.send(AppNodeManager, {:start_work, name})
   end
 
   # Callbacks
   @impl true
   def init(_opts) do
+    :erlang.process_flag(:trap_exit,true)
     # waiting for the others to start sync
     :global.sync()
     # requesting the kernal for monitor_node subscription
     :net_kernel.monitor_nodes(true, [:nodedown_reason])
     res = :global.register_name(AppNodeManager, self(), &:global.random_notify_name/3)
     clusterNodes = :erlang.nodes()
+    IO.puts(" APP Node Manager started")
+
     if res == :yes do
       :timer.send_after(1000, self(), :process_next)
+
       {:ok,
-       %{master: true, master_node: nil, active_nodes: [node() | clusterNodes], work_start?: false}}
+       %{
+         master: true,
+         master_node: nil,
+         active_nodes: [node() | clusterNodes],
+         work_start?: false,
+         work_name: nil
+       }}
     else
       {:ok,
        %{
          master: false,
          work_start?: false,
-         active_nodes: [node()|clusterNodes],
-         master_node: :global.whereis_name(AppNodeManager) |> node()
+         active_nodes: [node() | clusterNodes],
+         master_node: :global.whereis_name(AppNodeManager) |> node(),
+         work_name: nil
        }}
     end
   end
@@ -75,10 +90,15 @@ defmodule AppNodeManager do
     Logger.info("Node #{node()} becomes a master ")
     DailyReport.RestAPISupervisor.enable_rest_api()
     CurrencyRates.initiate(state.active_nodes)
+    DbHelper.presetup()
     WorkScheduler.markAsMaster()
-    {:noreply, %{state | master: true,master_node: node()}}
+    {:noreply, %{state | master: true, master_node: node()}}
   end
 
+  def handle_info({:work_done,_},state)do
+    Logger.info("Work #{inspect(state.work_name)} has been completed  !!!! ")
+    {:noreply,%{state| work_start?: false,work_name: nil}}
+  end  
   # ---------------------------------------------------------------------------------
   #                 Handling Node Up Signal
   # ---------------------------------------------------------------------------------
@@ -104,7 +124,7 @@ defmodule AppNodeManager do
     newCluster = active_nodes -- [node]
     # Master node check with Work scheduler to rebalancing the work of Downed node 
     if state.work_start? do
-      WorkScheduler.rebalance_work(state.work_name,newCluster)
+      WorkScheduler.rebalance_work(state.work_name, newCluster)
     end
 
     {:noreply, %{state | active_nodes: newCluster}}
@@ -144,9 +164,9 @@ defmodule AppNodeManager do
   # ---------------------------------------------------------------------------------
   #                 Initiate the work
   # ---------------------------------------------------------------------------------
-  def handle_info({:start_work,name}, state) do
-    WorkScheduler.start_work(name,state.active_nodes)
-    inform_peers(:work_started,state.active_nodes)
+  def handle_info({:start_work, name}, state) do
+    WorkScheduler.start_work(name, state.active_nodes)
+    inform_peers(:work_started, state.active_nodes)
     {:noreply, %{state | work_start?: true, work_name: name}}
   end
 
@@ -155,7 +175,6 @@ defmodule AppNodeManager do
   # ---------------------------------------------------------------------------------
   defp inform_peers(msg, nodes) do
     exceptMe = nodes -- [node()]
-    for node <- exceptMe, do: {node, __MODULE__} |> GenServer.cast(msg)
+    for node <- exceptMe, do: {__MODULE__, node} |> GenServer.cast(msg)
   end
-
 end

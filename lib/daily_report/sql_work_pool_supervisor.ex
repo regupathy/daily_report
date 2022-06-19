@@ -1,13 +1,16 @@
 defmodule DailyReport.SqlWorkPoolSupervisor do
-
   use DynamicSupervisor
 
   def start_link(init_arg) do
     DynamicSupervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
-  end 
-  
+  end
+
   def start() do
-    spec = {MyXQL, []}
+    username = Application.fetch_env!(:daily_report, :db_username)
+    password = Application.fetch_env!(:daily_report, :db_password)
+    database = Application.fetch_env!(:daily_report, :db_database)
+    dbconfig = [username: username, password: password, database: database]
+    spec = {MyXQL, dbconfig}
     DynamicSupervisor.start_child(__MODULE__, spec)
   end
 
@@ -16,12 +19,10 @@ defmodule DailyReport.SqlWorkPoolSupervisor do
   end
 
   @impl true
-  def init(init_arg) do
+  def init(_init_arg) do
     DynamicSupervisor.init(
       strategy: :one_for_one,
-      extra_arguments: [init_arg]
+      extra_arguments: []
     )
   end
-
-
 end

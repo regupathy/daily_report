@@ -2,6 +2,7 @@ defmodule NodeWorkStatus do
   @moduledoc """
     To maintain works status of all nodes
   """
+  require Logger
   defstruct [:job_name, :node, :complete_time, is_complete: false, row_id: 0]
 
   def new(schedule) do
@@ -13,15 +14,14 @@ defmodule NodeWorkStatus do
     %{jobs: joblist, start_by: node(), time: Time.utc_now()}
   end
 
-  def update_status(%{id: id, row: row_id}, status) do
-    %{status | id => %NodeWorkStatus{status[id] | row_id: row_id}}
+  def update_status(%{id: id, row: row_id}, %{jobs: jobs} = status) do
+    job = jobs[id]
+    %{status | jobs: %{jobs | id => %{job |row_id: row_id}}}
   end
 
-  def job_complete(id, status) do
-    %{
-      status
-      | id => %NodeWorkStatus{status[id] | is_complete: true, complete_time: Time.utc_now()}
-    }
+  def job_complete(id, %{jobs: jobs} = status) do
+    job = jobs[id]
+    %{ status| jobs: %{jobs | id => %{ job | is_complete: true, complete_time: Time.utc_now()} }}
   end
 
   def get_jobs(node, status) do

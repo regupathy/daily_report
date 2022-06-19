@@ -6,6 +6,7 @@ defmodule CurrencyRates do
 
   """
   use GenServer
+  require Logger
 
   def initiate(nodes) do
     GenServer.cast(__MODULE__, {:download_and_broadcast, nodes})
@@ -17,20 +18,26 @@ defmodule CurrencyRates do
 
   @currency_table :currency_ets_table
 
+  @impl true
   def init(_opts) do
-    api_key = Application.fetch_env!(:daily_dumb, :currency_api_key)
+    :erlang.process_flag(:trap_exit,true)
+    api_key = Application.fetch_env!(:daily_report, :openexchangerates_api_key)
     :ets.new(@currency_table, [:set, :protected, :named_table])
+    Logger.info("Currency rate Fetch processes Started and up Now")
     {:ok, %{api_key: api_key}}
   end
 
+  @impl true
   def handle_call(_msg, _from, state) do
     {:reply, :ok, state}
   end
 
+  @impl true
   def handle_cast({:download_and_broadcast, nodes}, %{api_key: api_key} = state) do
     currency_data = fetch_currency_rate(api_key)
     currency_data |> load()
     currency_data |> broadcast(nodes)
+    Logger.info("Downloaded the Currency rates and broadcast to all nodes")
     {:noreply, state}
   end
 
@@ -38,9 +45,16 @@ defmodule CurrencyRates do
     {:noreply, state}
   end
 
+  @impl true
   def handle_info({:load_data, data}, state) do
     data |> load()
     {:noreply, state}
+  end
+
+  @impl true
+  def terminate(_reason, _state) do
+    :ets.delete(@currency_table)
+    :ok
   end
 
   @doc """
@@ -48,9 +62,14 @@ defmodule CurrencyRates do
   """
   def convert_currency(currency, unit) do
     case :ets.lookup(@currency_table, unit) do
-      :undef -> {currency, unit}
-      rate -> {currency / rate, "USD"}
+      [] -> {currency, unit}
+      [{^unit, rate}] -> {currency / rate, "USD"}
     end
+  end
+
+  # keeping the local copy currency rate to avoid calling the live API for dev
+  defp fetch_currency_rate(:local) do
+    DummyCurrencyRates.data()
   end
 
   #  private method fetch_currency_rate/1 download the live curreny list from openexchangerates free open API
@@ -59,9 +78,9 @@ defmodule CurrencyRates do
   defp fetch_currency_rate(api_key) do
     url = 'https://openexchangerates.org/api/latest.json?app_id=#{api_key}'
 
-    case :httpc.request(:get, {url, []}, [], []) do
+    case :httpc.request(:get, {url, []}, [{:ssl, [{:verify, :verify_none}]}], []) do
       {:ok, {{'HTTP/1.1', 200, 'OK'}, _headers, body}} ->
-        body |> Poison.decode!() |> Keyword.get("rates")
+        body |> Poison.decode!() |> Map.get("rates")
     end
   end
 
