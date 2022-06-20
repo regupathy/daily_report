@@ -21,7 +21,9 @@ defmodule DailyReport.Application do
   end
 
   defp auto_join_nodes() do
-
+    for node <- :net_adm.world()do
+      :net_kernel.connect_node(node)
+    end
   end
   
 end

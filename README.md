@@ -18,3 +18,6 @@ To Initiate the work
 ```
 AppNodeManager.start_work("morining_report")
 ```
+
+## System Design Diagram 
+![system design](priv/Daily%20Report%20-%20Daily%20Report%20Design%20diagram.jpg)
