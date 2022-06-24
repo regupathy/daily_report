@@ -85,7 +85,7 @@ defmodule WorkHandler do
       when m + 1 >= n do
     post_job(state.cache ++ [field_values], state)
     # 7. inform his schedular about last processed row number 
-    :erlang.send(state.reporter, {:work_update, %{id: state.id, row: state.current_row}, self()})
+    send(state.reporter, {:work_update, %{id: state.id, row: state.current_row}, self()})
     {:noreply, %{state | cache: [], current_row: number, cache_count: 0}}
   end
 
@@ -98,14 +98,14 @@ defmodule WorkHandler do
     if count != 0 do
       post_job(state.cache, state)
       # 7. inform his schedular about last processed row number 
-      :erlang.send(
+      send(
         state.reporter,
         {:work_update, %{id: state.id, row: state.current_row}, self()}
       )
     end
 
     # 9. report the his schedular "i have done my job"
-    :erlang.send(state.reporter, {:done, state.job_name,self()})
+    send(state.reporter, {:done, state.job_name,self()})
     {:noreply, %{state | cache: [], cache_count: 0}}
   end
 
@@ -127,12 +127,11 @@ defmodule WorkHandler do
     #  4. get the row from Agent procees(file stream)
     event_fun = fn  number,rows ->
       field_values = Field.map_to_field(Map.put(rows,"row_id",number), Work.get_fields(work))
-      GenServer.cast(reporter, {:row, number, Enum.dedup(field_values)})
+      GenServer.cast(reporter, {:row, number, Enum.dedup(field_values) |> Field.update_currency_rate()})
     end
 
     after_fun = fn -> GenServer.cast(reporter, :work_done) end
     Agent.start_link(fn -> 
-      Logger.info(" File stream is begin for #{filepath}")
       CSVHandler.process(filepath, start_row, event_fun, after_fun) end)
   end
 

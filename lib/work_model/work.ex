@@ -10,20 +10,25 @@ defmodule Work do
   end
 
   def init() do
-    Mnesia.stop()
-    Mnesia.create_schema(node())
-    Mnesia.start()
-    Mnesia.change_table_copy_type(:schema, node(), :disc_copies)
-    Mnesia.create_table(Work,
-    [{:disc_copies, [node()]}, 
-      attributes: [:fields, :name,:options, :url], # map stored all values in the stored key value orders
-      index: [:name],
-      type: :bag
-    ])
+    case :erlang.nodes() != [] do
+      true ->  Mnesia.start()
+      false -> 
+        Mnesia.stop()
+        Mnesia.create_schema(node())
+        Mnesia.start()
+        Mnesia.change_table_copy_type(:schema, node(), :disc_copies)
+        Mnesia.create_table(Work,
+        [{:disc_copies, [node()]}, 
+          attributes: [:fields, :name,:options, :url], # map stored all values in the stored key value orders
+          index: [:name],
+          type: :bag
+        ])
+    end
   end
 
   def new_node(node) do
     Mnesia.change_config(:extra_db_nodes, [node])
+    Mnesia.change_table_copy_type(:schema, node, :disc_copies)
     Mnesia.add_table_copy(Work, node, :disc_copies)
   end
 

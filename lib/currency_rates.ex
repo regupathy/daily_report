@@ -8,6 +8,13 @@ defmodule CurrencyRates do
   use GenServer
   require Logger
 
+
+  def share_data(nodes)when is_list(nodes) do
+    GenServer.call(__MODULE__,{:share_data,nodes})  
+  end
+  def share_data(node), do: share_data([node])
+
+
   def initiate(nodes) do
     GenServer.cast(__MODULE__, {:download_and_broadcast, nodes})
   end
@@ -20,15 +27,15 @@ defmodule CurrencyRates do
 
   @impl true
   def init(_opts) do
-    :erlang.process_flag(:trap_exit,true)
+    Process.flag(:trap_exit,true)
     api_key = Application.fetch_env!(:daily_report, :openexchangerates_api_key)
     :ets.new(@currency_table, [:set, :protected, :named_table])
-    Logger.info("Currency rate Fetch processes Started and up Now")
     {:ok, %{api_key: api_key}}
   end
 
   @impl true
-  def handle_call(_msg, _from, state) do
+  def handle_call({:share_data,nodes}, _from, state) do
+    :ets.tab2list(@currency_table) |> broadcast(nodes)
     {:reply, :ok, state}
   end
 
@@ -47,6 +54,7 @@ defmodule CurrencyRates do
 
   @impl true
   def handle_info({:load_data, data}, state) do
+    Logger.info("Currency data recevied from master")
     data |> load()
     {:noreply, state}
   end
@@ -67,7 +75,7 @@ defmodule CurrencyRates do
     end
   end
 
-  # keeping the local copy currency rate to avoid calling the live API for dev
+  # keeping the local copy of currency rate to avoid calling the live API for dev
   defp fetch_currency_rate(:local) do
     DummyCurrencyRates.data()
   end
@@ -88,5 +96,5 @@ defmodule CurrencyRates do
     do: for({unit, rate} <- currency_rates, do: :ets.insert(@currency_table, {unit, rate}))
 
   defp broadcast(data, nodes),
-    do: for(node <- nodes, do: {node, __MODULE__} |> :erlang.send({:load_data, data}))
+    do: for(node <- nodes, do: {__MODULE__,node} |> send({:load_data, data}))
 end

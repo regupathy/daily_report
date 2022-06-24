@@ -36,7 +36,7 @@ defmodule AppNodeManager do
   # Callbacks
   @impl true
   def init(_opts) do
-    :erlang.process_flag(:trap_exit,true)
+    Process.flag(:trap_exit,true)
     # waiting for the others to start sync
     :global.sync()
     # requesting the kernal for monitor_node subscription
@@ -46,8 +46,8 @@ defmodule AppNodeManager do
     IO.puts(" APP Node Manager started")
 
     if res == :yes do
-      :timer.send_after(1000, self(), :process_next)
-
+      # :timer.send_after(1000, self(), :process_next)
+      Process.send_after(self(),:process_next,1000)
       {:ok,
        %{
          master: true,
@@ -106,6 +106,7 @@ defmodule AppNodeManager do
   def handle_info({:nodeup, node, _}, %{master: true} = state) do
     Logger.info(" Master Node:  Node #{node} joined in the Cluster ")
     Work.new_node(node)
+    CurrencyRates.share_data(node)
     :global.sync()
     {:noreply, state}
   end
@@ -139,7 +140,7 @@ defmodule AppNodeManager do
     res = :global.register_name(AppNodeManager, self(), &:global.random_notify_name/3)
 
     if res == :yes do
-      :timer.send_after(1000, self(), :process_next)
+      Process.send_after(self(), :process_next,1000)
       {:noreply, %{state | master: true, master_node: nil, active_nodes: [node | active_nodes]}}
     else
       {:noreply,

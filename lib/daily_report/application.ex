@@ -21,8 +21,11 @@ defmodule DailyReport.Application do
   end
 
   defp auto_join_nodes() do
-    for node <- :net_adm.world()do
-      :net_kernel.connect_node(node)
+    {:ok,names} = :net_adm.names()
+    localhost = :net_adm.localhost |> List.to_string |> String.split(".") |> hd
+    for {node_name,_} <- names do
+      true = List.to_string(node_name) <> "@" <> localhost |> String.to_atom
+      |> :net_kernel.connect_node()
     end
   end
   

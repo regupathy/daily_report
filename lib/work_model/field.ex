@@ -5,7 +5,7 @@ defmodule Field do
   def new(fileColumn, dbColumn, type) do
     %Field{
       file_column: fileColumn,
-      db_column: transform(dbColumn),
+      db_column: dbColumn,
       type: type(type)
     }
   end
@@ -34,10 +34,16 @@ defmodule Field do
 
   end
 
-  defp transform(str) do
+  def update_currency_rate(fields)do
+    %Field{value: currency} = fields |> Enum.find(fn x -> x.db_column == "currency"  end )
+    %Field{value: revenue} = field = fields |> Enum.find(fn x -> x.db_column == "revenue"  end )
+    fields -- [field] ++ [%{field | value:  CurrencyRates.convert_currency(revenue, currency)}]
+  end
+
+  def transform(str) do
     str
     |> String.to_charlist()
-    |> Enum.filter(&(&1 in Enum.concat(?a..?z,?A..?Z) ++ [?\s]))
+    |> Enum.filter(&(&1 in Enum.concat(?a..?z,?A..?Z) ++ [?\s,?_]))
     |> List.to_string 
     |> String.downcase()
     |> String.trim()

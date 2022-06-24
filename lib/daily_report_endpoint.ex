@@ -37,8 +37,8 @@ defmodule DailyReportEndpoint do
       with headers <- CSVHandler.get_stream(job["source"], false) |> CSVHandler.header(),
            usersFields <- map_to_field(job["mapping"]),
            fields <- header_to_fields(headers, usersFields),
-           _true <- Work.conform_required(fields) do
-            fields = Enum.concat(fields,Work.default_fields()) 
+           true <- Work.conform_required(fields) do
+        fields = Enum.concat(fields,Work.default_fields()) 
         Work.new(job["name"], job["source"], fields, []) |> Work.save()
         update_db_table(fields)
         Poison.encode!(%{response: "Accepted the job #{job["name"]}"})
@@ -70,7 +70,7 @@ defmodule DailyReportEndpoint do
   end
 
   defp header_to_fields(headers, fieldmap) do
-    for name <- headers, do: fieldmap["name"] || Field.new(name, name, :string)
+    for name <- headers, do: fieldmap[name] || Field.new(name, Field.transform(name), :string)
   end
 
   defp update_db_table(fields)do
