@@ -68,10 +68,11 @@ defmodule CurrencyRates do
   @doc """
    convert_currency/2 convert the given curreny into USD money value
   """
+  def convert_currency([currency], unit), do: convert_currency(currency, unit)
   def convert_currency(currency, unit) do
     case :ets.lookup(@currency_table, unit) do
-      [] -> {currency, unit}
-      [{^unit, rate}] -> {currency / rate, "USD"}
+      [] -> currency
+      [{^unit, rate}] -> String.to_integer(currency) / rate |> Float.to_string
     end
   end
 

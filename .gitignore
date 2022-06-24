@@ -25,5 +25,9 @@ daily_dumb-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
+Mnesia.*
+
+output/*
 
 .idea
+

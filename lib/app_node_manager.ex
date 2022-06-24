@@ -74,8 +74,8 @@ defmodule AppNodeManager do
   end
 
   @impl true
-  def handle_cast(:work_started, state) do
-    {:noreply, %{state | work_start?: true}}
+  def handle_cast({:work_started,name}, state) do
+    {:noreply, %{state | work_start?: true, work_name: name}}
   end
 
   @impl true
@@ -86,12 +86,15 @@ defmodule AppNodeManager do
     {:noreply, %{state | master: false}}
   end
 
-  def handle_info(:process_next, %{master: true} = state) do
+  def handle_info(:process_next, %{master: true,active_nodes: active_nodes} = state) do
     Logger.info("Node #{node()} becomes a master ")
     DailyReport.RestAPISupervisor.enable_rest_api()
     CurrencyRates.initiate(state.active_nodes)
     DbHelper.presetup()
     WorkScheduler.markAsMaster()
+    if state.work_start? do
+      WorkScheduler.rebalance_work(state.work_name, active_nodes)
+    end
     {:noreply, %{state | master: true, master_node: node()}}
   end
 
@@ -103,12 +106,13 @@ defmodule AppNodeManager do
   #                 Handling Node Up Signal
   # ---------------------------------------------------------------------------------
   # Master Node receive the slave node Node UP Signal
-  def handle_info({:nodeup, node, _}, %{master: true} = state) do
+  def handle_info({:nodeup, node, _}, %{master: true, active_nodes: active_nodes} = state) do
     Logger.info(" Master Node:  Node #{node} joined in the Cluster ")
     Work.new_node(node)
     CurrencyRates.share_data(node)
     :global.sync()
-    {:noreply, state}
+    Logger.info("current active nodes : #{inspect([node | active_nodes])}")
+    {:noreply, %{state | active_nodes: [node | active_nodes]}}
   end
 
   # Slave Node receive other Slave node Node UP signal
@@ -167,7 +171,7 @@ defmodule AppNodeManager do
   # ---------------------------------------------------------------------------------
   def handle_info({:start_work, name}, state) do
     WorkScheduler.start_work(name, state.active_nodes)
-    inform_peers(:work_started, state.active_nodes)
+    inform_peers({:work_started,name}, state.active_nodes)
     {:noreply, %{state | work_start?: true, work_name: name}}
   end
 

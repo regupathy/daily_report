@@ -8,7 +8,7 @@ defmodule WorkScheduler do
               3. save live status of all node's work status 
   """
 
-  defstruct [:master, :nodes, :work_status, :on_process, :master_ref, :handlers]
+  defstruct [:master, :nodes, :working_nodes, :work_status, :on_process, :master_ref, :handlers]
 
   def start_link(state) do
     GenServer.start_link(__MODULE__, state, name: __MODULE__)
@@ -67,7 +67,7 @@ defmodule WorkScheduler do
   def handle_call(
         {:rebalance_work, workname, nodes},
         _from,
-        %{master: true, nodes: usednodes, status: status} = state
+        %{master: true, working_nodes: usednodes, work_status: status} = state
       ) do
     pending = NodeWorkStatus.get_incomplete_jobs(usednodes -- nodes, status)
     if pending != [] do
@@ -104,7 +104,7 @@ defmodule WorkScheduler do
       end
     Logger.info("Handlers created for #{workname} are #{inspect(handlers)}")
     {:noreply,
-     %{state | work_status: workStatus, nodes: nodes, on_process: true, handlers: handlers}}
+     %{state | work_status: workStatus, working_nodes: nodes,on_process: true, handlers: handlers}}
   end
 
   # Schedulers create a new handler if any job assinged to his node
@@ -115,6 +115,7 @@ defmodule WorkScheduler do
     destination = Path.join("output", workname)
     File.mkdir(destination)
     newWorkStatus = NodeWorkStatus.reassign(reassign, workStatus)
+    Logger.info(" new work status : #{inspect(newWorkStatus)}")
     newhandlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(reassign, node(), newWorkStatus) do
         {:ok, ref} =

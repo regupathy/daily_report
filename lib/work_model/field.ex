@@ -37,7 +37,7 @@ defmodule Field do
   def update_currency_rate(fields)do
     %Field{value: currency} = fields |> Enum.find(fn x -> x.db_column == "currency"  end )
     %Field{value: revenue} = field = fields |> Enum.find(fn x -> x.db_column == "revenue"  end )
-    fields -- [field] ++ [%{field | value:  CurrencyRates.convert_currency(revenue, currency)}]
+    (fields -- [field]) ++ [%{field | value:  CurrencyRates.convert_currency(revenue, currency)}]
   end
 
   def transform(str) do

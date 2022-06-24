@@ -39,16 +39,19 @@ defmodule NodeWorkStatus do
   end
 
   def get_incomplete_jobs(nodes, status) do
+    Logger.info("incomplete job fetch : nodes : #{inspect(nodes)} and status : #{inspect(status)}")
     for {id, %NodeWorkStatus{node: node, is_complete: false}} <- status.jobs,
-        node not in nodes do
+        node in nodes do
       id
     end
   end
 
   def reassign(jobs, status) do
-    List.foldl(jobs, status, fn {id, node}, acc ->
-      work = acc.jobs[id]
-      %{acc | jobs: %{acc.jobs | id => %{work | node: node}}}
+    newjobs = 
+    List.foldl(jobs, status.jobs, fn {node,id}, acc ->
+      work = acc[id]
+      %{acc | id => %{work | node: node}}
     end)
+    %{status | jobs: newjobs}
   end
 end
