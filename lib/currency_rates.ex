@@ -8,12 +8,11 @@ defmodule CurrencyRates do
   use GenServer
   require Logger
 
-
-  def share_data(nodes)when is_list(nodes) do
-    GenServer.call(__MODULE__,{:share_data,nodes})  
+  def share_data(nodes) when is_list(nodes) do
+    GenServer.call(__MODULE__, {:share_data, nodes})
   end
-  def share_data(node), do: share_data([node])
 
+  def share_data(node), do: share_data([node])
 
   def initiate(nodes) do
     GenServer.cast(__MODULE__, {:download_and_broadcast, nodes})
@@ -27,14 +26,14 @@ defmodule CurrencyRates do
 
   @impl true
   def init(_opts) do
-    Process.flag(:trap_exit,true)
+    Process.flag(:trap_exit, true)
     api_key = Application.fetch_env!(:daily_report, :openexchangerates_api_key)
     :ets.new(@currency_table, [:set, :protected, :named_table])
     {:ok, %{api_key: api_key}}
   end
 
   @impl true
-  def handle_call({:share_data,nodes}, _from, state) do
+  def handle_call({:share_data, nodes}, _from, state) do
     :ets.tab2list(@currency_table) |> broadcast(nodes)
     {:reply, :ok, state}
   end
@@ -69,10 +68,11 @@ defmodule CurrencyRates do
    convert_currency/2 convert the given curreny into USD money value
   """
   def convert_currency([currency], unit), do: convert_currency(currency, unit)
+
   def convert_currency(currency, unit) do
     case :ets.lookup(@currency_table, unit) do
       [] -> currency
-      [{^unit, rate}] -> String.to_integer(currency) / rate |> Float.to_string
+      [{^unit, rate}] -> (String.to_integer(currency) / rate) |> Float.to_string()
     end
   end
 
@@ -97,5 +97,5 @@ defmodule CurrencyRates do
     do: for({unit, rate} <- currency_rates, do: :ets.insert(@currency_table, {unit, rate}))
 
   defp broadcast(data, nodes),
-    do: for(node <- nodes, do: {__MODULE__,node} |> send({:load_data, data}))
+    do: for(node <- nodes, do: {__MODULE__, node} |> send({:load_data, data}))
 end

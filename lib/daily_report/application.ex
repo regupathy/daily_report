@@ -7,7 +7,6 @@ defmodule DailyReport.Application do
 
   @impl true
   def start(_type, _args) do
-    
     children = [
       {DailyReport.RestAPISupervisor, []},
       {DailyReport.SqlWorkPoolSupervisor, []},
@@ -21,12 +20,14 @@ defmodule DailyReport.Application do
   end
 
   defp auto_join_nodes() do
-    {:ok,names} = :net_adm.names()
-    localhost = :net_adm.localhost |> List.to_string |> String.split(".") |> hd
-    for {node_name,_} <- names do
-      true = List.to_string(node_name) <> "@" <> localhost |> String.to_atom
-      |> :net_kernel.connect_node()
+    {:ok, names} = :net_adm.names()
+    localhost = :net_adm.localhost() |> List.to_string() |> String.split(".") |> hd
+
+    for {node_name, _} <- names do
+      true =
+        (List.to_string(node_name) <> "@" <> localhost)
+        |> String.to_atom()
+        |> :net_kernel.connect_node()
     end
   end
-  
 end

@@ -22,5 +22,4 @@ defmodule DailyReport.AppWorkSupervisor do
       extra_arguments: []
     )
   end
-  
 end

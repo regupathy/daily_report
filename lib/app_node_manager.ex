@@ -36,7 +36,7 @@ defmodule AppNodeManager do
   # Callbacks
   @impl true
   def init(_opts) do
-    Process.flag(:trap_exit,true)
+    Process.flag(:trap_exit, true)
     # waiting for the others to start sync
     :global.sync()
     # requesting the kernal for monitor_node subscription
@@ -47,7 +47,8 @@ defmodule AppNodeManager do
 
     if res == :yes do
       # :timer.send_after(1000, self(), :process_next)
-      Process.send_after(self(),:process_next,1000)
+      Process.send_after(self(), :process_next, 1000)
+
       {:ok,
        %{
          master: true,
@@ -74,7 +75,7 @@ defmodule AppNodeManager do
   end
 
   @impl true
-  def handle_cast({:work_started,name}, state) do
+  def handle_cast({:work_started, name}, state) do
     {:noreply, %{state | work_start?: true, work_name: name}}
   end
 
@@ -86,22 +87,25 @@ defmodule AppNodeManager do
     {:noreply, %{state | master: false}}
   end
 
-  def handle_info(:process_next, %{master: true,active_nodes: active_nodes} = state) do
+  def handle_info(:process_next, %{master: true, active_nodes: active_nodes} = state) do
     Logger.info("Node #{node()} becomes a master ")
     DailyReport.RestAPISupervisor.enable_rest_api()
     CurrencyRates.initiate(state.active_nodes)
     DbHelper.presetup()
     WorkScheduler.markAsMaster()
+
     if state.work_start? do
       WorkScheduler.rebalance_work(state.work_name, active_nodes)
     end
+
     {:noreply, %{state | master: true, master_node: node()}}
   end
 
-  def handle_info({:work_done,_},state)do
+  def handle_info({:work_done, _}, state) do
     Logger.info("Work #{inspect(state.work_name)} has been completed  !!!! ")
-    {:noreply,%{state| work_start?: false,work_name: nil}}
-  end  
+    {:noreply, %{state | work_start?: false, work_name: nil}}
+  end
+
   # ---------------------------------------------------------------------------------
   #                 Handling Node Up Signal
   # ---------------------------------------------------------------------------------
@@ -144,7 +148,7 @@ defmodule AppNodeManager do
     res = :global.register_name(AppNodeManager, self(), &:global.random_notify_name/3)
 
     if res == :yes do
-      Process.send_after(self(), :process_next,1000)
+      Process.send_after(self(), :process_next, 1000)
       {:noreply, %{state | master: true, master_node: nil, active_nodes: [node | active_nodes]}}
     else
       {:noreply,
@@ -171,7 +175,7 @@ defmodule AppNodeManager do
   # ---------------------------------------------------------------------------------
   def handle_info({:start_work, name}, state) do
     WorkScheduler.start_work(name, state.active_nodes)
-    inform_peers({:work_started,name}, state.active_nodes)
+    inform_peers({:work_started, name}, state.active_nodes)
     {:noreply, %{state | work_start?: true, work_name: name}}
   end
 

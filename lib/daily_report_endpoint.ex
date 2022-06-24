@@ -38,7 +38,7 @@ defmodule DailyReportEndpoint do
            usersFields <- map_to_field(job["mapping"]),
            fields <- header_to_fields(headers, usersFields),
            true <- Work.conform_required(fields) do
-        fields = Enum.concat(fields,Work.default_fields()) 
+        fields = Enum.concat(fields, Work.default_fields())
         Work.new(job["name"], job["source"], fields, []) |> Work.save()
         update_db_table(fields)
         Poison.encode!(%{response: "Accepted the job #{job["name"]}"})
@@ -53,9 +53,13 @@ defmodule DailyReportEndpoint do
   defp handle_error(%File.Error{reason: :enoent}, job) do
     Poison.encode!(%{response: "source #{job["source"]} is not found"})
   end
+
   defp handle_error(false, job) do
-    Poison.encode!(%{response: "source #{job["source"]} is not contains required columns revenue currency date"})
+    Poison.encode!(%{
+      response: "source #{job["source"]} is not contains required columns revenue currency date"
+    })
   end
+
   defp handle_error(any, job) do
     Logger.info(" any : #{inspect(any)}")
     Poison.encode!(%{response: "job #{job["name"]} is not accepted"})
@@ -73,12 +77,12 @@ defmodule DailyReportEndpoint do
     for name <- headers, do: fieldmap[name] || Field.new(name, Field.transform(name), :string)
   end
 
-  defp update_db_table(fields)do
-    {:ok,pid} = DailyReport.SqlWorkPoolSupervisor.start()
+  defp update_db_table(fields) do
+    {:ok, pid} = DailyReport.SqlWorkPoolSupervisor.start()
     columns = DbHelper.get_all_columns(pid)
     fields = fields |> Enum.filter(fn x -> x.db_column not in columns end)
     Logger.info(" New fields : #{inspect(fields)}")
-    DbHelper.update_coulmns(fields,pid)
+    DbHelper.update_coulmns(fields, pid)
     DailyReport.SqlWorkPoolSupervisor.stop(pid)
   end
 

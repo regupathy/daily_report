@@ -45,7 +45,9 @@ defmodule DbHelper do
   def update_coulmns([], _), do: :ok
 
   def update_coulmns(fields, conn) when is_list(fields) do
-    columns = for %Field{db_column: col, type: t} <- fields, do: "ADD COLUMN #{col}  #{db_type(t)}"
+    columns =
+      for %Field{db_column: col, type: t} <- fields, do: "ADD COLUMN #{col}  #{db_type(t)}"
+
     query = "ALTER Table #{@table} " <> Enum.join(columns, " , ")
     Logger.info(query)
     %MyXQL.Result{} = MyXQL.query!(conn, query)
@@ -69,13 +71,14 @@ defmodule DbHelper do
     MyXQL.query(conn, statement, params)
   end
 
-  def multinsert([],_),do: :done
+  def multinsert([], _), do: :done
+
   def multinsert(fields_values, conn) when is_list(fields_values) do
     cols = for x <- hd(fields_values), do: "`#{x.db_column}`"
     single_holder = List.duplicate("?", length(cols)) |> Enum.join(",")
 
     place_holder =
-      List.duplicate("(" <> single_holder <>")",length(fields_values)) |> Enum.join(",")
+      List.duplicate("(" <> single_holder <> ")", length(fields_values)) |> Enum.join(",")
 
     params =
       for items <- fields_values do
@@ -83,7 +86,7 @@ defmodule DbHelper do
       end
 
     statement = "INSERT INTO #{@table}(" <> Enum.join(cols, " , ") <> ")VALUES#{place_holder}"
-    {:ok,%MyXQL.Result{}}  = MyXQL.query(conn, statement, Enum.concat(params))
+    {:ok, %MyXQL.Result{}} = MyXQL.query(conn, statement, Enum.concat(params))
   end
 
   defp db_val(%Field{type: :int, value: val}) when is_integer(val), do: Integer.to_string(val)

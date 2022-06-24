@@ -1,6 +1,7 @@
 defmodule WorkScheduler do
   use GenServer
   require Logger
+
   @moduledoc """
     Work Scheduler is responsible for maintain 
               1. share all work meta data in all nodes
@@ -16,9 +17,11 @@ defmodule WorkScheduler do
 
   @impl true
   def init(_opts) do
-    :erlang.process_flag(:trap_exit,true)
+    :erlang.process_flag(:trap_exit, true)
     Work.init()
-    {:ok, %WorkScheduler{master: false, nodes: [], on_process: false, master_ref: nil, handlers: []}}
+
+    {:ok,
+     %WorkScheduler{master: false, nodes: [], on_process: false, master_ref: nil, handlers: []}}
   end
 
   # ------------------------------------------------------------------------------
@@ -89,11 +92,11 @@ defmodule WorkScheduler do
         {:work_begin, %{work_status: workStatus, nodes: nodes, workname: workname}},
         state
       ) do
-
-    destination = Path.join("output", workname) 
+    destination = Path.join("output", workname)
     File.mkdir(destination)
     # destination = destination |>  Path.expand(__DIR__)
-    Logger.info("Scheduler start work and use directory #{destination}")    
+    Logger.info("Scheduler start work and use directory #{destination}")
+
     handlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(node(), workStatus) do
         {:ok, ref} =
@@ -102,9 +105,17 @@ defmodule WorkScheduler do
 
         ref
       end
+
     Logger.info("Handlers created for #{workname} are #{inspect(handlers)}")
+
     {:noreply,
-     %{state | work_status: workStatus, working_nodes: nodes,on_process: true, handlers: handlers}}
+     %{
+       state
+       | work_status: workStatus,
+         working_nodes: nodes,
+         on_process: true,
+         handlers: handlers
+     }}
   end
 
   # Schedulers create a new handler if any job assinged to his node
@@ -116,19 +127,22 @@ defmodule WorkScheduler do
     File.mkdir(destination)
     newWorkStatus = NodeWorkStatus.reassign(reassign, workStatus)
     Logger.info(" new work status : #{inspect(newWorkStatus)}")
+
     newhandlers =
-      for {id, job_name, row} <- NodeWorkStatus.get_jobs(reassign, node(), newWorkStatus) do
+      for {id, job_name, row} <- NodeWorkStatus.get_jobs(node(), newWorkStatus) do
         {:ok, ref} =
           WorkHandler.params(id, job_name, row, destination)
           |> DailyReport.AppWorkSupervisor.start_work()
 
+          Logger.info("Handlers created for #{job_name} are #{inspect(ref)}")
         ref
       end
-      Logger.info("Handlers created for #{workname} are #{inspect(newhandlers)}")
+
+
     {:noreply,
      %{
        state
-       | work_status: newWorkStatus,
+       | work_status: Map.merge(workStatus,newWorkStatus),
          nodes: nodes,
          on_process: true,
          handlers: handlers ++ newhandlers
@@ -138,6 +152,7 @@ defmodule WorkScheduler do
   # Scheduler inform other scheduler about job status
   def handle_cast({:update, status}, %{work_status: workStatus} = state) do
     newStatus = NodeWorkStatus.update_status(status, workStatus)
+    # Logger.info(" others status #{inspect(status)} and new : #{inspect(newStatus)}")
     {:noreply, %{state | work_status: newStatus}}
   end
 
@@ -167,7 +182,7 @@ defmodule WorkScheduler do
   @impl true
   def handle_info(
         {:work_update, status, handler},
-        %{nodes: nodes, handlers: handlers, work_status: workStatus} = state
+        %{working_nodes: nodes, handlers: handlers, work_status: workStatus} = state
       ) do
     if handler in handlers do
       Logger.info("Handler #{inspect(handler)} has work update: #{inspect(status)}")
@@ -184,7 +199,7 @@ defmodule WorkScheduler do
         {:done, id, handler},
         %{nodes: nodes, handlers: handlers} = state
       ) do
-      Logger.info("Handler #{inspect(handler)} has done his work #{inspect(id)} ")
+    Logger.info("Handler #{inspect(handler)} has done his work #{inspect(id)} ")
     DailyReport.AppWorkSupervisor.stop(handler)
     newhandlers = handlers -- [handler]
 
@@ -195,16 +210,14 @@ defmodule WorkScheduler do
     {:noreply, %{state | handlers: newhandlers}}
   end
 
-
   @impl true
-  def handle_info(info,state)do
+  def handle_info(info, state) do
     IO.puts("Unhandled handleinfo: #{inspect(info)} ")
-    {:noreply,state}
+    {:noreply, state}
   end
 
-
   defp inform_peers(msg, nodes) do
-    inform_all(msg,nodes -- [node()])
+    inform_all(msg, nodes -- [node()])
   end
 
   defp inform_all(msg, nodes) do

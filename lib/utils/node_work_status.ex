@@ -16,12 +16,12 @@ defmodule NodeWorkStatus do
 
   def update_status(%{id: id, row: row_id}, %{jobs: jobs} = status) do
     job = jobs[id]
-    %{status | jobs: %{jobs | id => %{job |row_id: row_id}}}
+    %{status | jobs: %{jobs | id => %{job | row_id: row_id}}}
   end
 
   def job_complete(id, %{jobs: jobs} = status) do
     job = jobs[id]
-    %{ status| jobs: %{jobs | id => %{ job | is_complete: true, complete_time: Time.utc_now()} }}
+    %{status | jobs: %{jobs | id => %{job | is_complete: true, complete_time: Time.utc_now()}}}
   end
 
   def get_jobs(node, status) do
@@ -38,8 +38,9 @@ defmodule NodeWorkStatus do
     end
   end
 
+
+  def get_incomplete_jobs(_nodes, nil), do: [] 
   def get_incomplete_jobs(nodes, status) do
-    Logger.info("incomplete job fetch : nodes : #{inspect(nodes)} and status : #{inspect(status)}")
     for {id, %NodeWorkStatus{node: node, is_complete: false}} <- status.jobs,
         node in nodes do
       id
@@ -47,11 +48,17 @@ defmodule NodeWorkStatus do
   end
 
   def reassign(jobs, status) do
-    newjobs = 
-    List.foldl(jobs, status.jobs, fn {node,id}, acc ->
-      work = acc[id]
-      %{acc | id => %{work | node: node}}
-    end)
+    newjobs =
+      List.foldl(jobs, status.jobs, fn {node, id}, acc ->
+        work = acc[id]
+
+        if(work.node != node) do
+          %{acc | id => %{work | node: node}}
+        else
+          acc
+        end
+      end)
+
     %{status | jobs: newjobs}
   end
 end

@@ -29,9 +29,8 @@ defmodule WorkHandler do
     cache_count: 0
   ]
 
-  def start_link({state,reporter}) do
-
-    GenServer.start_link(__MODULE__, {state,reporter} ,[])
+  def start_link({state, reporter}) do
+    GenServer.start_link(__MODULE__, {state, reporter}, [])
   end
 
   def params(id, job_name, row, destination, items_count \\ 5) do
@@ -46,9 +45,10 @@ defmodule WorkHandler do
 
   @impl true
   def init({%WorkHandler{job_name: job_name} = state, reporter}) do
-    :erlang.process_flag(:trap_exit,true)
+    :erlang.process_flag(:trap_exit, true)
     work = Work.get(job_name)
     Logger.info(" work #{job_name} is assigned to #{inspect(self())}")
+
     case File.exists?(Work.get_source(work)) do
       true ->
         GenServer.cast(self(), {:start, self()})
@@ -74,10 +74,10 @@ defmodule WorkHandler do
     # 2. start Agent for file stream  
     source = Work.get_source(work)
     destination = Path.join(destination, state.job_name <> Path.basename(source))
-    File.cp!(source, destination,fn _, _ -> true end)
+    File.cp!(source, destination, fn _, _ -> true end)
     destination |> start_stream_agent(work, start_row)
     # 3. get the decidated sql worker
-    {:ok,sql_worker} = DailyReport.SqlWorkPoolSupervisor.start()
+    {:ok, sql_worker} = DailyReport.SqlWorkPoolSupervisor.start()
     {:noreply, %{state | sql_worker: sql_worker}}
   end
 
@@ -105,18 +105,18 @@ defmodule WorkHandler do
     end
 
     # 9. report the his schedular "i have done my job"
-    send(state.reporter, {:done, state.job_name,self()})
+    send(state.reporter, {:done, state.job_name, self()})
     {:noreply, %{state | cache: [], cache_count: 0}}
   end
 
   @impl true
-  def handle_info(info,state)do
+  def handle_info(info, state) do
     IO.puts("Unhandled handleinfo: #{inspect(info)} ")
-    {:noreply,state}
+    {:noreply, state}
   end
 
   @impl true
-  def terminate(reason,state) do
+  def terminate(reason, state) do
     Logger.info("handler is terminated for #{inspect(reason)}")
     # 10.on terminate kill Sql worker
     DailyReport.SqlWorkPoolSupervisor.stop(state.sql_worker)
@@ -125,14 +125,20 @@ defmodule WorkHandler do
   defp start_stream_agent(filepath, work, start_row) do
     reporter = self()
     #  4. get the row from Agent procees(file stream)
-    event_fun = fn  number,rows ->
-      field_values = Field.map_to_field(Map.put(rows,"row_id",number), Work.get_fields(work))
-      GenServer.cast(reporter, {:row, number, Enum.dedup(field_values) |> Field.update_currency_rate()})
+    event_fun = fn number, rows ->
+      field_values = Field.map_to_field(Map.put(rows, "row_id", number), Work.get_fields(work))
+
+      GenServer.cast(
+        reporter,
+        {:row, number, Enum.dedup(field_values) |> Field.update_currency_rate()}
+      )
     end
 
     after_fun = fn -> GenServer.cast(reporter, :work_done) end
-    Agent.start_link(fn -> 
-      CSVHandler.process(filepath, start_row, event_fun, after_fun) end)
+
+    Agent.start_link(fn ->
+      CSVHandler.process(filepath, start_row, event_fun, after_fun)
+    end)
   end
 
   defp post_job(rows, state) do
