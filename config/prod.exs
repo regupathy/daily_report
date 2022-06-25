@@ -2,6 +2,8 @@ import Config
 
 config :daily_report,
   openexchangerates_api_key: '23f7639edfb34aecbe04f8c94cea0671',
+  db_host: "localhost",
+  db_port: 3306,
   db_username: "root",
   db_password: "password",
   db_database: "daily_updates"
