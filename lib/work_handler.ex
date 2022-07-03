@@ -85,7 +85,12 @@ defmodule WorkHandler do
       when m + 1 >= n do
     post_job(state.cache ++ [field_values], state)
     # 7. inform his schedular about last processed row number 
-    send(state.reporter, {:work_update, %{id: state.id, row: state.current_row}, self()})
+    # send(state.reporter, {:work_update, %{id: state.id, row: state.current_row}, self()})
+    WorkState.update_status(
+      state.job_name,
+      {:work_update, %{id: state.id, row: state.current_row}}
+    )
+
     {:noreply, %{state | cache: [], current_row: number, cache_count: 0}}
   end
 
@@ -98,14 +103,19 @@ defmodule WorkHandler do
     if count != 0 do
       post_job(state.cache, state)
       # 7. inform his schedular about last processed row number 
-      send(
-        state.reporter,
-        {:work_update, %{id: state.id, row: state.current_row}, self()}
+      # send(
+      #   state.reporter,
+      #   {:work_update, %{id: state.id, row: state.current_row}, self()}
+      # )
+      WorkState.update_status(
+        state.job_name,
+        {:work_update, %{id: state.id, row: state.current_row}}
       )
     end
 
     # 9. report the his schedular "i have done my job"
-    send(state.reporter, {:done, state.job_name, self()})
+    send(state.reporter, {:done, state.id, self()})
+    WorkState.job_completed(state.job_name, state.id)
     {:noreply, %{state | cache: [], cache_count: 0}}
   end
 

@@ -73,6 +73,7 @@ defmodule WorkScheduler do
         %{master: true, working_nodes: usednodes, work_status: status} = state
       ) do
     pending = NodeWorkStatus.get_incomplete_jobs(usednodes -- nodes, status)
+
     if pending != [] do
       Logger.info(" Schedule rebalancing the work : #{inspect(pending)}")
       reassign = nodes |> Stream.cycle() |> Enum.zip(pending)
@@ -134,15 +135,14 @@ defmodule WorkScheduler do
           WorkHandler.params(id, job_name, row, destination)
           |> DailyReport.AppWorkSupervisor.start_work()
 
-          Logger.info("Handlers created for #{job_name} are #{inspect(ref)}")
+        Logger.info("Handlers created for #{job_name} are #{inspect(ref)}")
         ref
       end
-
 
     {:noreply,
      %{
        state
-       | work_status: Map.merge(workStatus,newWorkStatus),
+       | work_status: Map.merge(workStatus, newWorkStatus),
          nodes: nodes,
          on_process: true,
          handlers: handlers ++ newhandlers

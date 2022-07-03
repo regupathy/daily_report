@@ -38,8 +38,14 @@ defmodule NodeWorkStatus do
     end
   end
 
+  def get_incomplete_jobs(nil), do: []
 
-  def get_incomplete_jobs(_nodes, nil), do: [] 
+  def get_incomplete_jobs(status) do
+    for {_id, %NodeWorkStatus{node: node, is_complete: false}} <- status.jobs, do: node
+  end
+
+  def get_incomplete_jobs(_nodes, nil), do: []
+
   def get_incomplete_jobs(nodes, status) do
     for {id, %NodeWorkStatus{node: node, is_complete: false}} <- status.jobs,
         node in nodes do

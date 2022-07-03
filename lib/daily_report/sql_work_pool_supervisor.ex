@@ -11,7 +11,15 @@ defmodule DailyReport.SqlWorkPoolSupervisor do
     database = Application.fetch_env!(:daily_report, :db_database)
     host = Application.fetch_env!(:daily_report, :db_host)
     port = Application.fetch_env!(:daily_report, :db_port)
-    dbconfig = [username: username, password: password, database: database, hostname: host,port: port]
+
+    dbconfig = [
+      username: username,
+      password: password,
+      database: database,
+      hostname: host,
+      port: port
+    ]
+
     spec = {MyXQL, dbconfig}
     DynamicSupervisor.start_child(__MODULE__, spec)
   end

@@ -92,10 +92,10 @@ defmodule AppNodeManager do
     DailyReport.RestAPISupervisor.enable_rest_api()
     CurrencyRates.initiate(state.active_nodes)
     DbHelper.presetup()
-    WorkScheduler.markAsMaster()
+    WorkManager.markAsMaster()
 
     if state.work_start? do
-      WorkScheduler.rebalance_work(state.work_name, active_nodes)
+      WorkManager.rebalance_work(state.work_name, active_nodes)
     end
 
     {:noreply, %{state | master: true, master_node: node()}}
@@ -133,7 +133,7 @@ defmodule AppNodeManager do
     newCluster = active_nodes -- [node]
     # Master node check with Work scheduler to rebalancing the work of Downed node 
     if state.work_start? do
-      WorkScheduler.rebalance_work(state.work_name, newCluster)
+      WorkManager.rebalance_work(state.work_name, newCluster)
     end
 
     {:noreply, %{state | active_nodes: newCluster}}
@@ -149,7 +149,7 @@ defmodule AppNodeManager do
 
     if res == :yes do
       Process.send_after(self(), :process_next, 1000)
-      {:noreply, %{state | master: true, master_node: nil, active_nodes:  active_nodes --[node]}}
+      {:noreply, %{state | master: true, master_node: nil, active_nodes: active_nodes -- [node]}}
     else
       {:noreply,
        %{
@@ -174,7 +174,7 @@ defmodule AppNodeManager do
   #                 Initiate the work
   # ---------------------------------------------------------------------------------
   def handle_info({:start_work, name}, state) do
-    WorkScheduler.start_work(name, state.active_nodes)
+    WorkManager.start_work(name, state.active_nodes)
     inform_peers({:work_started, name}, state.active_nodes)
     {:noreply, %{state | work_start?: true, work_name: name}}
   end
