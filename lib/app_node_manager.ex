@@ -149,13 +149,13 @@ defmodule AppNodeManager do
 
     if res == :yes do
       Process.send_after(self(), :process_next, 1000)
-      {:noreply, %{state | master: true, master_node: nil, active_nodes: [node | active_nodes]}}
+      {:noreply, %{state | master: true, master_node: nil, active_nodes:  active_nodes --[node]}}
     else
       {:noreply,
        %{
          state
          | master: false,
-           active_nodes: [node | active_nodes],
+           active_nodes: active_nodes -- [node],
            master_node: :global.whereis_name(AppNodeManager) |> node()
        }}
     end

@@ -3,7 +3,7 @@ defmodule NodeWorkStatus do
     To maintain works status of all nodes
   """
   require Logger
-  defstruct [:job_name, :node, :complete_time, is_complete: false, row_id: 0]
+  defstruct [:job_name, :node, :complete_time, is_complete: false, row_id: -1]
 
   def new(schedule) do
     joblist =

@@ -163,7 +163,7 @@ defmodule WorkScheduler do
   end
 
   # Scheduler inform to other scheduler when all jobs are completed
-  def handle_cast({:node_completed_jobs, node}, %{nodes: nodes} = state) do
+  def handle_cast({:node_completed_jobs, node}, %{working_nodes: nodes} = state) do
     pendingNodes = nodes -- [node]
     # checking the master scheduler whether all nodes are done their jobs
     # if all done mean it will inform the global app node manager that all jobs are completed
@@ -171,7 +171,7 @@ defmodule WorkScheduler do
       AppNodeManager.to_global(:work_done)
     end
 
-    {:noreply, %{state | nodes: pendingNodes}}
+    {:noreply, %{state | working_nodes: pendingNodes}}
   end
 
   # ----------------------------------------------------------------------------
