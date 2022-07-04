@@ -13,15 +13,19 @@ defmodule WorkManager do
   # ------------------------------------------------------------------------------
 
   def markAsMaster() do
-    GenServer.call(WorkScheduler, :be_master)
+    GenServer.call(WorkManager, :be_master)
   end
 
   def start_work(name, nodes) do
-    GenServer.call(WorkScheduler, {:begin_work, nodes, name})
+    GenServer.call(WorkManager, {:begin_work, nodes, name})
   end
 
   def rebalance_work(_name, _nodes) do
     # GenServer.call(WorkScheduler, {:rebalance_work, name, nodes})
+  end
+
+  def all_done()do
+    GenServer.cast(WorkManager,:all_done)
   end
 
   # ------------------------------------------------------------------------------
@@ -29,8 +33,9 @@ defmodule WorkManager do
   # ------------------------------------------------------------------------------
 
   @impl true
-  def init([]) do
+  def init(_) do
     Process.flag(:trap_exit, true)
+    Work.init()
     {:ok, %WorkManager{}}
   end
 
@@ -52,25 +57,38 @@ defmodule WorkManager do
     {:reply, [], state}
   end
 
-  def handl_call(:hand_over, from, %{workname: name, pending_jobs: [job | jobs]} = state) do
-    WorkState.update_status(name, {:hand_over, job, node(), node(from)})
+  def handle_call(:hand_over, {from,_}, %{workname: name, pending_jobs: pending_jobs} = state) do
+    [{jobId,_,_}=job | jobs] = pending_jobs
+    WorkState.reassign(name, jobId, node(), node(from))
+    Logger.info(" share my job #{inspect(jobId)} to #{inspect(node(from))}")
     {:reply, [job], %{state | pending_jobs: jobs}}
   end
 
   @impl true
-  def handle_cast({:work_begin, %{workname: workname}}, state) do
+  def handle_cast({:work_begin, %{work_status: workStatus,workname: workname}}, state) do
     destination = Path.join("output", workname)
     File.mkdir(destination)
-    {:ok, work_state} = WorkState.start_link(workname, state.work_status)
+    {:ok, work_state} = WorkState.start_link(workname, workStatus)
+    WorkState.print(workname)
     pendingJobs = WorkState.get_my_job(workname)
     Process.send_after(self(), {:check_job, 2}, 1)
 
     {:noreply,
-     %{state | work_state: work_state, pending_jobs: pendingJobs, destination: destination}}
+     %{state |workname: workname, work_state: work_state, pending_jobs: pendingJobs, destination: destination}}
   end
 
   def handle_cast({:hand_over_jobs, handOver}, %{pending_jobs: pending_jobs} = state) do
+    Logger.info(" Recieved handover jobs : #{inspect(handOver)}")
     {:noreply, %{state | pending_jobs: pending_jobs ++ handOver}}
+  end
+
+  def handle_cast(:all_done,state)do
+    WorkState.print(state.workname)
+    # GenServer.stop(state.work_state)
+    if state.master do
+      AppNodeManager.to_global(:work_done)
+    end
+    {:noreply,state}
   end
 
   @impl true
@@ -81,14 +99,24 @@ defmodule WorkManager do
   end
 
   def handle_info({:check_job, n}, %{handlers: handlers, pending_jobs: [job | jobs]} = state) do
-    handler = create_handler(job, state.destination)
+    handler = create_handler(state.workname,job, state.destination)
     if n - 1 > 0, do: Process.send_after(self(), {:check_job, n - 1}, 1)
-    {:noreply, %{state | handlers: Map.put(handlers, handler, elem(1, job)), pending_jobs: jobs}}
+    {:noreply, %{state | handlers: Map.put(handlers, handler, elem(job,1)), pending_jobs: jobs}}
   end
 
-  defp create_handler({id, job_name, row}, destination) do
+  def handle_info({:done, jobId, handler},state)do
+    Logger.info(" handler #{inspect(handler)} completed the job : #{inspect(jobId)} ")
+    Process.send_after(self(), {:check_job, 1}, 1)
+    {:noreply,%{state | handlers: Map.delete(state.handlers,handler)} }
+  end
+
+  def handle_info(_,state)do
+    {:noreply,state}
+  end
+
+  defp create_handler(job_title,{id, job_name, row}, destination) do
     {:ok, ref} =
-      WorkHandler.params(id, job_name, row, destination)
+      WorkHandler.params(id, job_name, job_title, row, destination)
       |> DailyReport.AppWorkSupervisor.start_work()
 
     Logger.info("Handlers created for #{job_name} are #{inspect(ref)}")
@@ -107,16 +135,14 @@ defmodule WorkManager do
 
   defp request_jobs(busyNodes, n) do
     self = self()
-
-    Process.spawn(
-      fn ->
-        handOver = loop(busyNodes, 0, n, [])
-        if handOver != [], do: GenServer.cast(self, {:hand_over_jobs, handOver})
-        pendingWorkers = if length(handOver) < n, do: length(handOver), else: n
-        Enum.each(pendingWorkers, fn _ -> send({:check_job, 1}, self) end)
-      end,
-      [:monitor]
-    )
+    fun = fn ->
+      handOver = loop(busyNodes, 0, n, [])
+      if handOver != [] do 
+        GenServer.cast(self, {:hand_over_jobs, handOver})
+        Enum.each(1..length(handOver), fn _ -> send(self,{:check_job, 1}) end)
+      end
+    end
+    Process.spawn(fun,[])
   end
 
   defp loop(_, n, n, jobs), do: jobs

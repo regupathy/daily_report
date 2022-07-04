@@ -9,5 +9,5 @@ config :daily_report,
   db_database: "daily_updates"
 
 config :logger, :console,
-  format: "[$level] $message $metadata\n",
+  format: "[$level] $message \n",
   metadata: [:error_code, :file]

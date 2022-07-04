@@ -38,6 +38,24 @@ defmodule NodeWorkStatus do
     end
   end
 
+  def isAllCompleted?(status)do
+    Enum.all?(status.jobs,fn {_,job} -> job.is_complete end)
+  end
+
+  def print_state(status) do
+      state = for n <- :erlang.nodes() ++ [node()], into: %{}, do: {n,[]}
+      state = 
+      List.foldl(Map.to_list(status.jobs),state,
+      fn ({_,job},state) -> 
+        old = state[job.node]
+        %{state | job.node => [job.job_name | old]} end)
+      Logger.info(" Total Jobs #{inspect(length(Map.to_list(status.jobs)))}\n")
+      Enum.each(state,fn {node,jobnames} -> 
+        Logger.info(" Node : #{inspect(node)} jobs count : #{length(jobnames)} \n 
+         Jobs : #{inspect(jobnames)}\n\n")
+      end)
+  end
+
   def get_incomplete_jobs(nil), do: []
 
   def get_incomplete_jobs(status) do
@@ -51,6 +69,12 @@ defmodule NodeWorkStatus do
         node in nodes do
       id
     end
+  end
+
+  def reassign(status,jobId,fromNode,toNode)do
+    jobs = status.jobs
+    %{node: ^fromNode} = job  = jobs[jobId]
+    %{status | jobs: %{jobs | jobId => %{job | node: toNode} }}  
   end
 
   def reassign(jobs, status) do

@@ -101,7 +101,7 @@ defmodule WorkScheduler do
     handlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(node(), workStatus) do
         {:ok, ref} =
-          WorkHandler.params(id, job_name, row, destination)
+          WorkHandler.params(id, job_name, workname,row, destination)
           |> DailyReport.AppWorkSupervisor.start_work()
 
         ref
@@ -132,7 +132,7 @@ defmodule WorkScheduler do
     newhandlers =
       for {id, job_name, row} <- NodeWorkStatus.get_jobs(node(), newWorkStatus) do
         {:ok, ref} =
-          WorkHandler.params(id, job_name, row, destination)
+          WorkHandler.params(id, job_name, workname,row, destination)
           |> DailyReport.AppWorkSupervisor.start_work()
 
         Logger.info("Handlers created for #{job_name} are #{inspect(ref)}")

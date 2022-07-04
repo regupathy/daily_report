@@ -9,7 +9,8 @@ defmodule DailyReport.GeneralSupervisor do
   def init(_init_arg) do
     children = [
       {CurrencyRates, []},
-      {WorkScheduler, []},
+      # {WorkScheduler, []},
+      {WorkManager,[]},
       {AppNodeManager, []}
     ]
 

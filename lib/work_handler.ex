@@ -18,6 +18,7 @@ defmodule WorkHandler do
   defstruct [
     :id,
     :job_name,
+    :job_title,
     :start_row,
     :destination,
     :sql_worker,
@@ -33,10 +34,11 @@ defmodule WorkHandler do
     GenServer.start_link(__MODULE__, {state, reporter}, [])
   end
 
-  def params(id, job_name, row, destination, items_count \\ 5) do
+  def params(id, job_name,job_title, row, destination, items_count \\ 5) do
     %WorkHandler{
       id: id,
       job_name: job_name,
+      job_title: job_title,
       destination: destination,
       start_row: row,
       items_count: items_count
@@ -87,8 +89,8 @@ defmodule WorkHandler do
     # 7. inform his schedular about last processed row number 
     # send(state.reporter, {:work_update, %{id: state.id, row: state.current_row}, self()})
     WorkState.update_status(
-      state.job_name,
-      {:work_update, %{id: state.id, row: state.current_row}}
+      state.job_title,
+      %{id: state.id, row: state.current_row}
     )
 
     {:noreply, %{state | cache: [], current_row: number, cache_count: 0}}
@@ -108,14 +110,14 @@ defmodule WorkHandler do
       #   {:work_update, %{id: state.id, row: state.current_row}, self()}
       # )
       WorkState.update_status(
-        state.job_name,
-        {:work_update, %{id: state.id, row: state.current_row}}
+        state.job_title,
+        %{id: state.id, row: state.current_row}
       )
     end
 
     # 9. report the his schedular "i have done my job"
     send(state.reporter, {:done, state.id, self()})
-    WorkState.job_completed(state.job_name, state.id)
+    WorkState.job_completed(state.job_title, state.id)
     {:noreply, %{state | cache: [], cache_count: 0}}
   end
 
