@@ -1,5 +1,5 @@
 defmodule WorkManager do
-  defstruct [:work_state, :workname, :destination, handlers: %{}, master: false, pending_jobs: []]
+  defstruct [:work_state, :workname, :destination, is_active: false, handlers: %{}, master: false, pending_jobs: []]
 
   use GenServer
   require Logger
@@ -74,7 +74,7 @@ defmodule WorkManager do
     Process.send_after(self(), {:check_job, 2}, 1)
 
     {:noreply,
-     %{state |workname: workname, work_state: work_state, pending_jobs: pendingJobs, destination: destination}}
+     %{state |workname: workname, is_active: true, work_state: work_state, pending_jobs: pendingJobs, destination: destination}}
   end
 
   def handle_cast({:hand_over_jobs, handOver}, %{pending_jobs: pending_jobs} = state) do
@@ -84,7 +84,10 @@ defmodule WorkManager do
 
   def handle_cast(:all_done,state)do
     WorkState.print(state.workname)
-    # GenServer.stop(state.work_state)
+    Process.spawn(fn ->
+      Process.sleep(2000) 
+      GenServer.stop(state.work_state)
+    end,[])
     if state.master do
       AppNodeManager.to_global(:work_done)
     end
@@ -92,6 +95,7 @@ defmodule WorkManager do
   end
 
   @impl true
+  def handle_info({:check_job, _n}, %{is_active: false } = state), do: {:noreply,state} 
   def handle_info({:check_job, n}, %{pending_jobs: []} = state) do
     busyNodes = WorkState.get_busy_nodes(state.workname)
     request_jobs(busyNodes, n)
